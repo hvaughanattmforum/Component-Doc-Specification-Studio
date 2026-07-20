@@ -26,13 +26,14 @@ function pairKey(row) {
 // Constrains a YAML eTOM/YAML SID cell to entries already chosen in this
 // component's eTOMs/SIDs pickers (on the Metadata tab), instead of free
 // text - those are the only values that can validly appear here, so typing
-// them by hand only invites typos and drift from the pickers. Picked one at
-// a time (a single dropdown + Add), matching the add/remove list pattern
-// used by the eTOMs/SIDs pickers themselves, rather than a multi-select
-// listbox that hides its own multi-pick gesture (ctrl/cmd-click) from
-// anyone who doesn't already know it. A previously-stored value that isn't
-// in the current options still shows, flagged, and can be removed
-// individually.
+// them by hand only invites typos and drift from the pickers. The
+// underlying value still supports multiple "; "-joined entries (see
+// parseMulti above - real files like TMFC005 have a row with two), but the
+// picker itself only ever shows one at a time: once a value is chosen, the
+// dropdown/Add control is replaced by just that value and its Remove
+// button, and picking is only offered again once it's removed. A
+// previously-stored value that isn't in the current options still shows,
+// flagged, and can be removed individually.
 function MultiSelectField({ label, hint, options, valueString, onChange }) {
   const selected = parseMulti(valueString);
   const available = options.filter((o) => !selected.includes(o));
@@ -48,7 +49,7 @@ function MultiSelectField({ label, hint, options, valueString, onChange }) {
   return (
     <div className="field">
       <label>{label} <span className="hint">{hint}</span></label>
-      {available.length > 0 && (
+      {selected.length === 0 && available.length > 0 && (
         <div className="row" style={{ marginBottom: 6 }}>
           <select
             value={pending}
@@ -61,10 +62,7 @@ function MultiSelectField({ label, hint, options, valueString, onChange }) {
           <button type="button" onClick={add} disabled={!pending}>+ Add</button>
         </div>
       )}
-      {available.length === 0 && options.length > 0 && (
-        <p className="hint">All entries from the form above are already added.</p>
-      )}
-      {options.length === 0 && (
+      {selected.length === 0 && options.length === 0 && (
         <p className="hint">Nothing selected on the Metadata tab yet.</p>
       )}
       {selected.length > 0 ? (
@@ -193,8 +191,7 @@ export default function LinksStep({ dirName, eTOMs, SIDs }) {
           const isDuplicate = duplicateRows.has(i);
           const isActive = activeRow === i;
           return (
-            <div className="card" key={i} style={isDuplicate ? { borderColor: 'var(--danger)' } : undefined}>
-              <button type="button" className="card-remove ghost" onClick={() => removeRow(i)}>Remove</button>
+            <div className="card" key={i} style={{ paddingTop: 14, ...(isDuplicate ? { borderColor: 'var(--danger)' } : null) }}>
               {isDuplicate && (
                 <p className="hint" style={{ color: 'var(--danger)' }}>
                   This eTOM/SID pair is already captured by another row - each relationship should appear once.
@@ -237,6 +234,7 @@ export default function LinksStep({ dirName, eTOMs, SIDs }) {
                 {isActive && result?.ok && <span className="hint" style={{ color: 'var(--ok)' }}>Saved.</span>}
                 {isActive && result?.error && <span className="hint" style={{ color: 'var(--danger)' }}>{result.error}</span>}
                 {isDuplicate && <span className="hint" style={{ color: 'var(--danger)' }}>Resolve the duplicate pair above to save.</span>}
+                <button type="button" className="ghost" onClick={() => removeRow(i)} style={{ marginLeft: 'auto' }}>Remove</button>
               </div>
             </div>
           );
