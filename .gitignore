@@ -1,0 +1,11 @@
+node_modules/
+client/dist/
+server/dist/
+scripts/vendor/
+scripts/__pycache__/
+**/__pycache__/
+installer/payload/*.exe
+installer/payload/public.zip
+installer/payload/scripts.zip
+installer/payload/frameworks.zip
+*.log
