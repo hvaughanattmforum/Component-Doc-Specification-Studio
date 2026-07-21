@@ -59,7 +59,7 @@ function MultiSelectField({ label, hint, options, valueString, onChange }) {
             <option value="">Choose one to add...</option>
             {available.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
           </select>
-          <button type="button" onClick={add} disabled={!pending}>+ Add</button>
+          <button type="button" className="save" onClick={add} disabled={!pending}>+ Add</button>
         </div>
       )}
       {selected.length === 0 && options.length === 0 && (
@@ -239,7 +239,7 @@ export default function LinksStep({ dirName, eTOMs, SIDs }) {
             </div>
           );
         })}
-        <button type="button" className="ghost" onClick={addRow}>+ Add link</button>
+        <button type="button" className="save" onClick={addRow}>+ Add link</button>
         {data.links.length === 0 && (
           <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
             <button type="button" className="save" onClick={() => save(null)} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>

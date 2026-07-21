@@ -84,7 +84,7 @@ function ManualResourceRows({ resources, onChange }) {
           <button type="button" className="remove" onClick={() => remove(i)}>Remove</button>
         </div>
       ))}
-      <button type="button" className="ghost" onClick={add}>+ Add event name manually</button>
+      <button type="button" className="save" onClick={add}>+ Add event name manually</button>
     </div>
   );
 }
@@ -174,7 +174,7 @@ export default function EventsStep({ state, setState, apiCatalog }) {
               </div>
             );
           })}
-          <button type="button" className="ghost" onClick={addPublished} disabled={addDisabled}>+ Add published event</button>
+          <button type="button" className="save" onClick={addPublished} disabled={addDisabled}>+ Add published event</button>
         </div>
       </div>
 
@@ -191,7 +191,7 @@ export default function EventsStep({ state, setState, apiCatalog }) {
               onRemove={() => removeSubscribed(i)}
             />
           ))}
-          <button type="button" className="ghost" onClick={addSubscribed}>+ Add subscribed event</button>
+          <button type="button" className="save" onClick={addSubscribed}>+ Add subscribed event</button>
         </div>
       </div>
       <datalist id="event-api-catalog-options">

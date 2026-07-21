@@ -34,7 +34,7 @@ function ContactList({ label, items, onChange }) {
             </div>
           </div>
         ))}
-        <button type="button" className="ghost" onClick={add}>+ Add {label.slice(0, -1)}</button>
+        <button type="button" className="save" onClick={add}>+ Add {label.slice(0, -1)}</button>
       </div>
     </div>
   );

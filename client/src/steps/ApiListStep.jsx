@@ -24,7 +24,7 @@ function ResourceRows({ resources, onChange }) {
           <button type="button" className="remove" onClick={() => remove(i)}>Remove</button>
         </div>
       ))}
-      <button type="button" className="ghost" onClick={add}>+ Add resource</button>
+      <button type="button" className="save" onClick={add}>+ Add resource</button>
     </div>
   );
 }
@@ -133,11 +133,11 @@ export default function ApiListStep({ title, items, onChange, apiCatalog, requir
                   />
                 ))}
               </div>
-              <button type="button" className="ghost" onClick={() => addSpec(i)}>+ Add specification version</button>
+              <button type="button" className="save" onClick={() => addSpec(i)}>+ Add specification version</button>
             </div>
           </div>
         ))}
-        <button type="button" className="ghost" onClick={add}>+ Add API</button>
+        <button type="button" className="save" onClick={add}>+ Add API</button>
       </div>
       <datalist id="api-catalog-options">
         {apiCatalog.map((a) => <option key={a.key} value={a.id}>{a.name} (v{a.version})</option>)}

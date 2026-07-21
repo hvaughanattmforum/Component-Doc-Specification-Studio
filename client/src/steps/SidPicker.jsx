@@ -112,7 +112,7 @@ export default function SidPicker({ value, onChange }) {
             onChange={(e) => setCustomChild(e.target.value)}
           />
         </div>
-        <button type="button" onClick={add} disabled={!domain || !abe}>+ Add</button>
+        <button type="button" className="save" onClick={add} disabled={!domain || !abe}>+ Add</button>
       </div>
 
       {value.length > 0 && (
