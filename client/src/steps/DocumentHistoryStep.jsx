@@ -59,7 +59,7 @@ function HistoryTable({ columns, rows, editableCount, onChange }) {
           </tbody>
         </table>
       </div>
-      <button type="button" className="ghost" onClick={addRow} style={{ marginTop: 8 }}>+ Add row</button>
+      <button type="button" className="save" onClick={addRow} style={{ marginTop: 8 }}>+ Add row</button>
     </>
   );
 }

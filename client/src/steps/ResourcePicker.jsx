@@ -62,7 +62,7 @@ export default function ResourcePicker({ apiId, apiVersion, apiCatalog, existing
               <div className="card" key={r.name}>
                 <div className="row" style={{ alignItems: 'center' }}>
                   <strong style={{ flex: 1 }}>{r.name}{already ? ' (already added)' : ''}</strong>
-                  <button type="button" className="ghost" onClick={() => add(r.name)}>+ Add</button>
+                  <button type="button" className="save" onClick={() => add(r.name)}>+ Add</button>
                 </div>
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 6 }}>
                   {r.operations.map((verb) => (
