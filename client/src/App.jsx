@@ -8,6 +8,7 @@ import EventsStep from './steps/EventsStep.jsx';
 import ReviewStep from './steps/ReviewStep.jsx';
 import DocumentHistoryStep from './steps/DocumentHistoryStep.jsx';
 import SetupGuide from './SetupGuide.jsx';
+import HelpButton from './HelpButton.jsx';
 import { stateFromComponent } from './parseComponent.js';
 
 const STEPS = ['Metadata', 'Links', 'Exposed APIs', 'Dependent APIs', 'Events', 'Review & Save', 'Document History'];
@@ -76,7 +77,10 @@ export default function App() {
 
   return (
     <div className="app">
-      <h1>ODA Component Doc Specification Studio</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <h1>ODA Component Doc Specification Studio</h1>
+        <HelpButton />
+      </div>
       {repoInfo?.git && (repoInfo.git.remote || repoInfo.git.branch) && (
         <p className="repo-connection">
           Connected to{' '}

@@ -86,7 +86,7 @@ export default function ReviewStep({ state, original, originalLocation, mode }) 
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
         <button onClick={runValidate} disabled={busy}>Validate</button>
-        <button className="primary" onClick={() => runSave(false)} disabled={busy}>{mode === 'edit' ? 'Save changes' : 'Save component'}</button>
+        <button className="save" onClick={() => runSave(false)} disabled={busy}>{mode === 'edit' ? 'Save changes' : 'Save component'}</button>
       </div>
 
       <pre className="yaml-preview">{yamlText}</pre>

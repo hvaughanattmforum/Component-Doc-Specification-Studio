@@ -10,6 +10,7 @@
   --panel: #f7f5f9;
   --danger: #b3261e;
   --ok: #1e7b34;
+  --help: #96790a;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,6 +24,7 @@
     --panel: #201f26;
     --danger: #ff6b6b;
     --ok: #4fd672;
+    --help: #e0c04a;
   }
 }
 
@@ -115,6 +117,7 @@ h1 {
   --accent-fg: #ffffff;
   --danger: #b3261e;
   --ok: #1e7b34;
+  --help: #96790a;
   background: var(--bg);
   color: var(--fg);
 }
@@ -223,6 +226,37 @@ button.danger {
   border-color: var(--danger);
 }
 
+/* Pale-tinted fills for the app's two recurring row actions, using the same
+   color-mix-over-the-background formula as .status-banner (a tint of the
+   existing --danger/--ok tokens, not new colors), so every Remove/Save
+   button reads consistently regardless of theme. */
+button.remove {
+  background: color-mix(in srgb, var(--danger) 16%, var(--bg));
+  border-color: var(--danger);
+  color: var(--danger);
+}
+button.remove:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 28%, var(--bg));
+}
+
+button.save {
+  background: color-mix(in srgb, var(--ok) 16%, var(--bg));
+  border-color: var(--ok);
+  color: var(--ok);
+}
+button.save:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ok) 28%, var(--bg));
+}
+
+button.help {
+  background: color-mix(in srgb, var(--help) 18%, var(--bg));
+  border-color: var(--help);
+  color: var(--help);
+}
+button.help:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--help) 30%, var(--bg));
+}
+
 button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -303,6 +337,31 @@ pre.yaml-preview {
 .history-table input[type="text"] {
   font-size: 0.85rem;
   padding: 5px 7px;
+}
+
+.help-anchor {
+  position: relative;
+}
+
+.help-box {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: 280px;
+  background: color-mix(in srgb, var(--help) 14%, var(--bg));
+  border: 1px solid var(--help);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 0.85rem;
+  color: var(--fg);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+}
+.help-box p {
+  margin: 0 0 10px;
+}
+.help-box a {
+  color: var(--help);
 }
 
 datalist {}

@@ -74,7 +74,7 @@ function MultiSelectField({ label, hint, options, valueString, onChange }) {
                 <span style={{ flex: 1, fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem', color: isUnmatched ? 'var(--danger)' : 'inherit' }}>
                   {v}{isUnmatched ? ' — not in current selection above' : ''}
                 </span>
-                <button type="button" className="ghost" onClick={() => remove(v)}>Remove</button>
+                <button type="button" className="remove" onClick={() => remove(v)}>Remove</button>
               </div>
             );
           })}
@@ -228,13 +228,13 @@ export default function LinksStep({ dirName, eTOMs, SIDs }) {
                 onChange={(v) => updateRow(i, 'yamlSID', v)}
               />
               <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
-                <button type="button" onClick={() => save(i)} disabled={saving || duplicateRows.size > 0}>
+                <button type="button" className="save" onClick={() => save(i)} disabled={saving || duplicateRows.size > 0}>
                   {saving && isActive ? 'Saving...' : 'Save'}
                 </button>
                 {isActive && result?.ok && <span className="hint" style={{ color: 'var(--ok)' }}>Saved.</span>}
                 {isActive && result?.error && <span className="hint" style={{ color: 'var(--danger)' }}>{result.error}</span>}
                 {isDuplicate && <span className="hint" style={{ color: 'var(--danger)' }}>Resolve the duplicate pair above to save.</span>}
-                <button type="button" className="ghost" onClick={() => removeRow(i)} style={{ marginLeft: 'auto' }}>Remove</button>
+                <button type="button" className="remove" onClick={() => removeRow(i)} style={{ marginLeft: 'auto' }}>Remove</button>
               </div>
             </div>
           );
@@ -242,7 +242,7 @@ export default function LinksStep({ dirName, eTOMs, SIDs }) {
         <button type="button" className="ghost" onClick={addRow}>+ Add link</button>
         {data.links.length === 0 && (
           <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button type="button" onClick={() => save(null)} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+            <button type="button" className="save" onClick={() => save(null)} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
             <span className="hint">No link rows yet.</span>
             {activeRow === null && result?.ok && <span className="hint" style={{ color: 'var(--ok)' }}>Saved.</span>}
             {activeRow === null && result?.error && <span className="hint" style={{ color: 'var(--danger)' }}>{result.error}</span>}

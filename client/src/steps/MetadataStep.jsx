@@ -17,7 +17,7 @@ function ContactList({ label, items, onChange }) {
       <div className="card-list">
         {items.map((item, i) => (
           <div className="card" key={i}>
-            <button type="button" className="card-remove ghost" onClick={() => remove(i)}>Remove</button>
+            <button type="button" className="card-remove remove" onClick={() => remove(i)}>Remove</button>
             <div className="row">
               <div className="field">
                 <label>Name</label>
