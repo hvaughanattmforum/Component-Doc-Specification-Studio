@@ -65,7 +65,7 @@ function PathConfig({ label, fieldName, envVarName, placeholder, config, onSaved
               placeholder={placeholder}
               style={{ flex: 1 }}
             />
-            <button onClick={save} disabled={saving || !value.trim()}>
+            <button className="save" onClick={save} disabled={saving || !value.trim()}>
               {saving ? 'Saving...' : 'Save'}
             </button>
           </div>

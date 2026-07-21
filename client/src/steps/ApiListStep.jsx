@@ -21,7 +21,7 @@ function ResourceRows({ resources, onChange }) {
           <div className="field">
             <input type="text" placeholder="GET, GET /id, POST, PATCH, DELETE" value={r.verbs} onChange={(e) => update(i, 'verbs', e.target.value)} />
           </div>
-          <button type="button" className="ghost" onClick={() => remove(i)}>Remove</button>
+          <button type="button" className="remove" onClick={() => remove(i)}>Remove</button>
         </div>
       ))}
       <button type="button" className="ghost" onClick={add}>+ Add resource</button>
@@ -91,7 +91,7 @@ export default function ApiListStep({ title, items, onChange, apiCatalog, requir
       <div className="card-list">
         {items.map((item, i) => (
           <div className="card" key={i}>
-            <button type="button" className="card-remove ghost" onClick={() => remove(i)}>Remove</button>
+            <button type="button" className="card-remove remove" onClick={() => remove(i)}>Remove</button>
             <div className="row">
               <div className="field">
                 <label>API ID</label>

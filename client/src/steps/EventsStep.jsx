@@ -81,7 +81,7 @@ function ManualResourceRows({ resources, onChange }) {
       {resources.map((r, i) => (
         <div className="row" key={i} style={{ marginBottom: 4 }}>
           <input type="text" value={r} onChange={(e) => set(i, e.target.value)} placeholder="eventName" />
-          <button type="button" className="ghost" onClick={() => remove(i)}>Remove</button>
+          <button type="button" className="remove" onClick={() => remove(i)}>Remove</button>
         </div>
       ))}
       <button type="button" className="ghost" onClick={add}>+ Add event name manually</button>
@@ -139,7 +139,7 @@ export default function EventsStep({ state, setState, apiCatalog }) {
             const events = eventsByName[item.name] || [];
             return (
               <div className="card" key={i}>
-                <button type="button" className="card-remove ghost" onClick={() => removePublished(i)}>Remove</button>
+                <button type="button" className="card-remove remove" onClick={() => removePublished(i)}>Remove</button>
                 <div className="row">
                   <div className="field">
                     <label>API name</label>
@@ -229,7 +229,7 @@ function SubscribedEventCard({ item, apiCatalog, onChange, onToggleResource, onR
 
   return (
     <div className="card">
-      <button type="button" className="card-remove ghost" onClick={onRemove}>Remove</button>
+      <button type="button" className="card-remove remove" onClick={onRemove}>Remove</button>
       <div className="row">
         <div className="field">
           <label>API ID <span className="hint">look up in APIIndex</span></label>

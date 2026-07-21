@@ -48,7 +48,7 @@ function HistoryTable({ columns, rows, editableCount, onChange }) {
                     </td>
                   ))}
                   <td className="remove-cell">
-                    {!locked && <button type="button" className="ghost" onClick={() => removeRow(i)}>Remove</button>}
+                    {!locked && <button type="button" className="remove" onClick={() => removeRow(i)}>Remove</button>}
                   </td>
                 </tr>
               );
@@ -155,7 +155,7 @@ export default function DocumentHistoryStep({ dirName }) {
 
   const SaveRow = ({ cardKey, label }) => (
     <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
-      <button type="button" onClick={() => save(cardKey)} disabled={saving}>
+      <button type="button" className="save" onClick={() => save(cardKey)} disabled={saving}>
         {saving && activeCard === cardKey ? 'Saving...' : label || 'Save'}
       </button>
       {activeCard === cardKey && result?.ok && <span className="hint" style={{ color: 'var(--ok)' }}>Saved.</span>}
