@@ -46,23 +46,77 @@ function useExposedApiEvents(exposedAPIs, apiCatalog) {
   return { options, eventsByName, anyLoading };
 }
 
-function EventCheckboxes({ events, selected, onToggle }) {
+// Two even columns rather than a flex-wrap that reflows unpredictably with
+// event-name length - a fixed grid keeps the list scannable regardless of
+// how many names are long/short.
+function EventCheckboxGrid({ events, checked, onToggle }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px' }}>
+      {events.map((ev) => (
+        <label key={ev} className="checkbox-row" style={{ fontSize: '0.85rem' }}>
+          <input type="checkbox" checked={checked.has(ev)} onChange={() => onToggle(ev)} />
+          {ev}
+        </label>
+      ))}
+    </div>
+  );
+}
+
+// Checking boxes only ever edits local, pending state - nothing is written
+// back to the component's spec until Save is clicked, mirroring the
+// resource picker's Add/Edit-operations pattern rather than committing on
+// every click. Once saved, collapses to a read-only summary with an Edit
+// button to reopen it. Pass a `key` that changes whenever the underlying API/
+// event list changes (e.g. a different exposed API selected), so this
+// remounts with fresh state instead of carrying over a stale selection.
+function EventSelector({ events, selected, onSave }) {
+  const [editing, setEditing] = useState(selected.length === 0);
+  const [checked, setChecked] = useState(() => new Set(selected));
+
   if (!events.length && !selected.length) {
     return <div className="hint">This API's swagger has no /listener event paths.</div>;
   }
   // Anything already selected but not in the fetched list (e.g. a legacy or
   // hand-typed name from before this API had a swagger match) is still shown
-  // and stays checked, so editing an existing component never silently drops
-  // or hides data - it's just not one of the API's currently-known events.
-  const displayList = [...events, ...selected.filter((r) => !events.includes(r))];
+  // and stays checkable, so editing an existing component never silently
+  // drops or hides data - it's just not one of the API's currently-known
+  // events.
+  const allEvents = [...events, ...selected.filter((r) => !events.includes(r))];
+
+  const toggle = (ev) => setChecked((prev) => {
+    const next = new Set(prev);
+    if (next.has(ev)) next.delete(ev); else next.add(ev);
+    return next;
+  });
+
+  if (!editing) {
+    return (
+      <div>
+        {selected.length ? (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 16px', marginBottom: 8 }}>
+            {selected.map((ev) => <div key={ev} className="hint">{ev}</div>)}
+          </div>
+        ) : (
+          <div className="hint" style={{ display: 'block', marginBottom: 6 }}>No events selected.</div>
+        )}
+        <button type="button" className="save" onClick={() => { setChecked(new Set(selected)); setEditing(true); }}>
+          Edit events
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
-      {displayList.map((ev) => (
-        <label key={ev} className="checkbox-row" style={{ fontSize: '0.85rem' }}>
-          <input type="checkbox" checked={selected.includes(ev)} onChange={() => onToggle(ev)} />
-          {ev}
-        </label>
-      ))}
+    <div>
+      <EventCheckboxGrid events={allEvents} checked={checked} onToggle={toggle} />
+      <button
+        type="button"
+        className="save"
+        style={{ marginTop: 10 }}
+        onClick={() => { onSave([...checked]); setEditing(false); }}
+      >
+        Save
+      </button>
     </div>
   );
 }
@@ -89,10 +143,6 @@ function ManualResourceRows({ resources, onChange }) {
   );
 }
 
-function toggleIn(list, value) {
-  return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
-}
-
 export default function EventsStep({ state, setState, apiCatalog }) {
   const { options: publishedNameOptions, eventsByName, anyLoading } = useExposedApiEvents(state.exposedAPIs, apiCatalog);
 
@@ -101,10 +151,15 @@ export default function EventsStep({ state, setState, apiCatalog }) {
     next[i] = { ...next[i], [field]: value };
     setState({ ...state, publishedEvents: next });
   };
+  // An exposed API only has one real event-group name, so it doesn't make
+  // sense for two published-event cards to both claim it - each API name is
+  // offered to exactly one card at a time.
+  const usedPublishedNames = new Set(state.publishedEvents.map((p) => p.name).filter(Boolean));
+  const unusedPublishedOptions = publishedNameOptions.filter((o) => !usedPublishedNames.has(o.name));
   const addPublished = () => setState({
     ...state,
     publishedEvents: [...state.publishedEvents, {
-      name: publishedNameOptions[0]?.name || '', apiType: 'openapi', resources: [],
+      name: unusedPublishedOptions[0]?.name || '', apiType: 'openapi', resources: [],
     }],
   });
   const removePublished = (i) => setState({ ...state, publishedEvents: state.publishedEvents.filter((_, idx) => idx !== i) });
@@ -122,21 +177,28 @@ export default function EventsStep({ state, setState, apiCatalog }) {
   });
   const removeSubscribed = (i) => setState({ ...state, subscribedEvents: state.subscribedEvents.filter((_, idx) => idx !== i) });
 
-  const addDisabled = publishedNameOptions.length === 0;
+  const addDisabled = unusedPublishedOptions.length === 0;
 
   return (
     <>
       <div className="panel">
         <h3 style={{ marginTop: 0 }}>Published events</h3>
-        {addDisabled && !anyLoading && (
+        {addDisabled && !anyLoading && publishedNameOptions.length === 0 && (
           <div className="hint" style={{ marginBottom: 10 }}>Add an exposed API first - published events can only be named after one of the component's own exposed APIs.</div>
         )}
         {addDisabled && anyLoading && (
           <div className="hint" style={{ marginBottom: 10 }}>Loading API names from swagger...</div>
         )}
+        {addDisabled && !anyLoading && publishedNameOptions.length > 0 && (
+          <div className="hint" style={{ marginBottom: 10 }}>Every exposed API already has a published event entry.</div>
+        )}
         <div className="card-list">
           {state.publishedEvents.map((item, i) => {
             const events = eventsByName[item.name] || [];
+            // Options already claimed by another card are hidden from this
+            // one's dropdown - except this card's own current name, which
+            // must stay selectable (it's not a duplicate of itself).
+            const optionsForThisCard = publishedNameOptions.filter((o) => o.name === item.name || !usedPublishedNames.has(o.name));
             return (
               <div className="card" key={i}>
                 <button type="button" className="card-remove remove" onClick={() => removePublished(i)}>Remove</button>
@@ -147,7 +209,7 @@ export default function EventsStep({ state, setState, apiCatalog }) {
                       {!publishedNameOptions.some((o) => o.name === item.name) && (
                         <option value={item.name}>{item.name || '(select an exposed API)'}</option>
                       )}
-                      {publishedNameOptions.map((o) => (
+                      {optionsForThisCard.map((o) => (
                         <option key={o.id} value={o.name}>{o.name} ({o.id})</option>
                       ))}
                     </select>
@@ -162,10 +224,11 @@ export default function EventsStep({ state, setState, apiCatalog }) {
                   {anyLoading && !events.length ? (
                     <div className="hint">Loading events from swagger...</div>
                   ) : events.length ? (
-                    <EventCheckboxes
+                    <EventSelector
+                      key={item.name}
                       events={events}
                       selected={item.resources}
-                      onToggle={(ev) => updatePublished(i, 'resources', toggleIn(item.resources, ev))}
+                      onSave={(evs) => updatePublished(i, 'resources', evs)}
                     />
                   ) : (
                     <ManualResourceRows resources={item.resources} onChange={(v) => updatePublished(i, 'resources', v)} />
@@ -181,22 +244,32 @@ export default function EventsStep({ state, setState, apiCatalog }) {
       <div className="panel">
         <h3 style={{ marginTop: 0 }}>Subscribed events</h3>
         <div className="card-list">
-          {state.subscribedEvents.map((item, i) => (
-            <SubscribedEventCard
-              key={i}
-              item={item}
-              apiCatalog={apiCatalog}
-              onChange={(field, value) => updateSubscribed(i, field, value)}
-              onToggleResource={(ev) => updateSubscribed(i, 'resources', toggleIn(item.resources, ev))}
-              onRemove={() => removeSubscribed(i)}
-            />
-          ))}
+          {state.subscribedEvents.map((item, i) => {
+            // Same one-API-per-card rule as published events, but apiId is
+            // free text (any external component's API, not a fixed list) so
+            // it can only be discouraged (datalist suggestions exclude ids
+            // taken elsewhere) and flagged, not hard-prevented like a select.
+            const otherApiIds = state.subscribedEvents
+              .filter((_, idx) => idx !== i)
+              .map((s) => (s.apiId || '').trim().toUpperCase())
+              .filter(Boolean);
+            const thisApiId = (item.apiId || '').trim().toUpperCase();
+            return (
+              <SubscribedEventCard
+                key={i}
+                index={i}
+                item={item}
+                apiCatalog={apiCatalog}
+                excludeApiIds={otherApiIds}
+                isDuplicate={!!thisApiId && otherApiIds.includes(thisApiId)}
+                onChange={(field, value) => updateSubscribed(i, field, value)}
+                onRemove={() => removeSubscribed(i)}
+              />
+            );
+          })}
           <button type="button" className="save" onClick={addSubscribed}>+ Add subscribed event</button>
         </div>
       </div>
-      <datalist id="event-api-catalog-options">
-        {apiCatalog.map((a) => <option key={a.key} value={a.id}>{a.name} (v{a.version})</option>)}
-      </datalist>
     </>
   );
 }
@@ -205,12 +278,16 @@ export default function EventsStep({ state, setState, apiCatalog }) {
 // no fixed list to pick from like published events have, so the user looks
 // one up in the API catalog by id, and we fetch its swagger the same way
 // (event name from info.title, available events from /listener/* paths).
-function SubscribedEventCard({ item, apiCatalog, onChange, onToggleResource, onRemove }) {
+function SubscribedEventCard({ item, apiCatalog, onChange, onRemove, index, excludeApiIds, isDuplicate }) {
   const [events, setEvents] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const match = matchCatalogEntry(apiCatalog, (item.apiId || '').trim());
+  const datalistId = `event-api-catalog-options-${index}`;
+  // Suggestions exclude APIs already claimed by another subscribed-event
+  // card - each API should only be subscribed to once in this panel.
+  const availableCatalog = apiCatalog.filter((a) => !excludeApiIds.includes(a.id.toUpperCase()));
 
   const lookup = async () => {
     if (!match) return;
@@ -230,16 +307,25 @@ function SubscribedEventCard({ item, apiCatalog, onChange, onToggleResource, onR
   return (
     <div className="card">
       <button type="button" className="card-remove remove" onClick={onRemove}>Remove</button>
+      {isDuplicate && (
+        <div className="status-banner error" style={{ marginBottom: 10 }}>
+          {item.apiId} is already used by another subscribed event above - each API should only be subscribed to once.
+        </div>
+      )}
       <div className="row">
         <div className="field">
           <label>API ID <span className="hint">look up in APIIndex</span></label>
           <input
             type="text"
-            list="event-api-catalog-options"
+            list={datalistId}
             value={item.apiId}
             onChange={(e) => { onChange('apiId', e.target.value); setEvents(null); }}
             placeholder="TMF633"
+            className={isDuplicate ? 'duplicate' : undefined}
           />
+          <datalist id={datalistId}>
+            {availableCatalog.map((a) => <option key={a.key} value={a.id}>{a.name} (v{a.version})</option>)}
+          </datalist>
         </div>
         <div className="field">
           <label>API name</label>
@@ -260,7 +346,12 @@ function SubscribedEventCard({ item, apiCatalog, onChange, onToggleResource, onR
         )}
         {error && <div className="status-banner error" style={{ marginTop: 8 }}>{error}</div>}
         {events && (
-          <EventCheckboxes events={events} selected={item.resources} onToggle={onToggleResource} />
+          <EventSelector
+            key={match?.id}
+            events={events}
+            selected={item.resources}
+            onSave={(evs) => onChange('resources', evs)}
+          />
         )}
         {!match && (
           <ManualResourceRows resources={item.resources} onChange={(v) => onChange('resources', v)} />
