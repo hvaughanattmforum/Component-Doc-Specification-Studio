@@ -43,14 +43,22 @@ export default function App() {
   const [originalLocation, setOriginalLocation] = useState(null); // { dirName, fileName }
   const [functionalBlocks, setFunctionalBlocks] = useState([]);
   const [apiCatalog, setApiCatalog] = useState([]);
+  const [apiCatalogError, setApiCatalogError] = useState(null);
   const [repoInfo, setRepoInfo] = useState(null);
 
   const refreshRepoInfo = () => api.health().then(setRepoInfo).catch(() => setRepoInfo({ ok: false }));
 
+  const refreshApiCatalog = () => {
+    setApiCatalogError(null);
+    return api.apis()
+      .then((r) => setApiCatalog(r.apis))
+      .catch((err) => setApiCatalogError(err.message || 'Failed to load the API catalog.'));
+  };
+
   useEffect(() => {
     refreshRepoInfo();
     api.functionalBlocks().then((r) => setFunctionalBlocks(r.functionalBlocks)).catch(() => {});
-    api.apis().then((r) => setApiCatalog(r.apis)).catch(() => {});
+    refreshApiCatalog();
   }, []);
 
   const startCreate = () => {
@@ -130,6 +138,14 @@ export default function App() {
           {mode === 'edit' && (
             <div className="status-banner ok" style={{ marginBottom: 16 }}>
               Editing existing component {originalLocation?.dirName}. ID and name are locked to avoid orphaning its conformance profile/RI/diagram folders.
+            </div>
+          )}
+
+          {apiCatalogError && [2, 3, 4].includes(step) && (
+            <div className="status-banner error" style={{ marginBottom: 16 }}>
+              Couldn't load the API catalog ({apiCatalogError}). The resource/event pickers can't resolve any
+              API to its swagger spec until this succeeds — every API will show "No catalog entry found."{' '}
+              <button type="button" onClick={refreshApiCatalog}>Retry</button>
             </div>
           )}
 

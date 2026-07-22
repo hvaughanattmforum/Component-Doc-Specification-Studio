@@ -262,6 +262,33 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* Same pale-tint formula as button.help, applied to a plain text input -
+   flags "this field isn't resolved to anything real yet" (e.g. an API ID
+   that doesn't match any known TMF API), lower tint % than the button
+   variants since input text needs to stay readable over it. */
+input.unresolved {
+  background: color-mix(in srgb, var(--help) 12%, var(--bg));
+  border-color: var(--help);
+}
+
+/* Same formula again, over --danger - flags a value that actively conflicts
+   with another entry (e.g. a duplicate API id), stronger signal than
+   .unresolved's "not matched yet". */
+input.duplicate {
+  background: color-mix(in srgb, var(--danger) 12%, var(--bg));
+  border-color: var(--danger);
+}
+
+/* Neutral gray tint (not tied to any status color) for a field that's
+   read-only because changing it would orphan already-saved data - distinct
+   from .unresolved (amber, "not valid yet") and .duplicate (red, "conflicts
+   with another entry"), since being locked isn't itself a problem. */
+input.locked {
+  background: color-mix(in srgb, var(--muted) 12%, var(--bg));
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
 .nav-buttons {
   display: flex;
   justify-content: space-between;

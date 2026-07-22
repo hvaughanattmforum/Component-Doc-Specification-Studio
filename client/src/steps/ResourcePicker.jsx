@@ -2,7 +2,17 @@ import React, { useState } from 'react';
 import { api } from '../api.js';
 import { matchCatalogEntry } from '../apiCatalogUtils.js';
 
-export default function ResourcePicker({ apiId, apiVersion, apiCatalog, existingResources, onAdd }) {
+// Verbs are stored as a comma-separated string on the resource row (e.g.
+// "GET, GET /id, POST") - this turns an already-captured resource's saved
+// verbs back into a Set so the picker's checkboxes can be pre-filled with
+// what's actually already selected, instead of starting blank every time.
+function existingVerbsFor(existingResources, name) {
+  const found = existingResources.find((er) => er.name === name);
+  if (!found) return new Set();
+  return new Set((found.verbs || '').split(',').map((v) => v.trim()).filter(Boolean));
+}
+
+export default function ResourcePicker({ apiId, apiVersion, apiCatalog, existingResources, onAdd, onResourcesLoaded }) {
   const [resources, setResources] = useState(null);
   const [checked, setChecked] = useState({}); // { [resourceName]: Set(verbs) }
   const [loading, setLoading] = useState(false);
@@ -17,8 +27,13 @@ export default function ResourcePicker({ apiId, apiVersion, apiCatalog, existing
     try {
       const result = await api.apiResources(match.swagger);
       setResources(result.resources);
+      onResourcesLoaded?.(result.resources);
       const initialChecked = {};
-      result.resources.forEach((r) => { initialChecked[r.name] = new Set(); });
+      // Pre-fill from whatever's already captured for this resource, rather
+      // than always starting from an empty selection - this is what lets an
+      // already-added resource's operations be edited (added to or removed
+      // from) instead of only ever being appended to blind.
+      result.resources.forEach((r) => { initialChecked[r.name] = existingVerbsFor(existingResources, r.name); });
       setChecked(initialChecked);
     } catch (err) {
       setError(err.message);
@@ -35,7 +50,7 @@ export default function ResourcePicker({ apiId, apiVersion, apiCatalog, existing
     });
   };
 
-  const add = (resourceName) => {
+  const save = (resourceName) => {
     const verbs = [...(checked[resourceName] || [])];
     if (!verbs.length) return;
     onAdd(resourceName, verbs);
@@ -48,7 +63,7 @@ export default function ResourcePicker({ apiId, apiVersion, apiCatalog, existing
       <label>Resource picker <span className="hint">from the API's real swagger spec</span></label>
       {!match && <div className="hint">No catalog entry found for {apiId}{apiVersion ? ` v${apiVersion}` : ''} - use the resource rows below manually.</div>}
       {match && (
-        <button type="button" onClick={load} disabled={loading}>
+        <button type="button" className="save" onClick={load} disabled={loading}>
           {loading ? 'Loading spec...' : `Load resources from ${match.id} v${match.version} spec`}
         </button>
       )}
@@ -58,11 +73,14 @@ export default function ResourcePicker({ apiId, apiVersion, apiCatalog, existing
         <div className="card-list" style={{ marginTop: 10, maxHeight: 280, overflowY: 'auto' }}>
           {resources.map((r) => {
             const already = existingResources.some((er) => er.name === r.name);
+            const hasSelection = !!checked[r.name]?.size;
             return (
               <div className="card" key={r.name}>
                 <div className="row" style={{ alignItems: 'center' }}>
                   <strong style={{ flex: 1 }}>{r.name}{already ? ' (already added)' : ''}</strong>
-                  <button type="button" className="save" onClick={() => add(r.name)}>+ Add</button>
+                  <button type="button" className="save" onClick={() => save(r.name)} disabled={!hasSelection}>
+                    {already ? 'Edit operations' : '+ Add'}
+                  </button>
                 </div>
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 6 }}>
                   {r.operations.map((verb) => (
