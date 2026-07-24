@@ -7,11 +7,24 @@ import ApiListStep from './steps/ApiListStep.jsx';
 import EventsStep from './steps/EventsStep.jsx';
 import ReviewStep from './steps/ReviewStep.jsx';
 import DocumentHistoryStep from './steps/DocumentHistoryStep.jsx';
+import DescriptionsStep from './steps/DescriptionsStep.jsx';
 import SetupGuide from './SetupGuide.jsx';
 import HelpButton from './HelpButton.jsx';
 import { stateFromComponent } from './parseComponent.js';
 
-const STEPS = ['Metadata', 'Links', 'Exposed APIs', 'Dependent APIs', 'Events', 'Review & Save', 'Document History'];
+const STEPS = ['Metadata', 'Links', 'Descriptions', 'Exposed APIs', 'Dependent APIs', 'Events', 'Review & Save', 'Document History'];
+
+// Which file each step edits: most steps build up `state` and only write it
+// to the component's main YAML when Review & Save is used, while Links,
+// Descriptions and Document History write straight to their own .md files
+// under that component's Diagrams/ folder (see LinksStep.jsx /
+// DescriptionsStep.jsx / DocumentHistoryStep.jsx) independently of the
+// YAML/Save flow. Grouped here purely for the step pills' display below -
+// doesn't affect step order or navigation.
+const STEP_GROUPS = [
+  { label: 'Component YAML', indices: [0, 3, 4, 5, 6] },
+  { label: 'Component Spec Document', indices: [1, 2, 7] },
+];
 
 function blankState() {
   return {
@@ -122,16 +135,23 @@ export default function App() {
 
       {view === 'wizard' && mode !== null && (
         <>
-          <div className="steps">
+          <div className="steps" style={{ marginBottom: 12 }}>
             <button className="step-pill" onClick={backToStart}>&larr; Start over</button>
-            {STEPS.map((label, i) => (
-              <button
-                key={label}
-                className={`step-pill ${i === step ? 'active' : ''}`}
-                onClick={() => setStep(i)}
-              >
-                {i + 1}. {label}
-              </button>
+          </div>
+          <div className="step-groups">
+            {STEP_GROUPS.map((group, groupIdx) => (
+              <div className="step-group" key={group.label}>
+                <span className="step-group-label">{group.label}</span>
+                {group.indices.map((i, posIdx) => (
+                  <button
+                    key={STEPS[i]}
+                    className={`step-pill ${i === step ? 'active' : ''}`}
+                    onClick={() => setStep(i)}
+                  >
+                    {groupIdx + 1}.{posIdx + 1}. {STEPS[i]}
+                  </button>
+                ))}
+              </div>
             ))}
           </div>
 
@@ -141,7 +161,7 @@ export default function App() {
             </div>
           )}
 
-          {apiCatalogError && [2, 3, 4].includes(step) && (
+          {apiCatalogError && [3, 4, 5].includes(step) && (
             <div className="status-banner error" style={{ marginBottom: 16 }}>
               Couldn't load the API catalog ({apiCatalogError}). The resource/event pickers can't resolve any
               API to its swagger spec until this succeeds — every API will show "No catalog entry found."{' '}
@@ -161,6 +181,13 @@ export default function App() {
             <LinksStep dirName={originalLocation?.dirName} eTOMs={state.eTOMs} SIDs={state.SIDs} />
           )}
           {step === 2 && (
+            <DescriptionsStep
+              dirName={originalLocation?.dirName}
+              eTOMs={state.eTOMs}
+              functionalFrameworkFunctions={state.functionalFrameworkFunctions}
+            />
+          )}
+          {step === 3 && (
             <ApiListStep
               title="Exposed APIs"
               requiredMeaning="Mandatory for Conformance"
@@ -169,7 +196,7 @@ export default function App() {
               apiCatalog={apiCatalog}
             />
           )}
-          {step === 3 && (
+          {step === 4 && (
             <ApiListStep
               title="Dependent APIs"
               requiredMeaning="Mandatory Dependency"
@@ -178,13 +205,13 @@ export default function App() {
               apiCatalog={apiCatalog}
             />
           )}
-          {step === 4 && (
+          {step === 5 && (
             <EventsStep state={state} setState={setState} apiCatalog={apiCatalog} />
           )}
-          {step === 5 && (
+          {step === 6 && (
             <ReviewStep state={state} original={original} originalLocation={originalLocation} mode={mode} />
           )}
-          {step === 6 && (
+          {step === 7 && (
             <DocumentHistoryStep dirName={originalLocation?.dirName} />
           )}
 
