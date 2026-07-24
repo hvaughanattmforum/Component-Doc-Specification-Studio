@@ -28,6 +28,18 @@ export const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }).then((res) => res.json().then((body) => ({ status: res.status, ...body }))),
+  componentEtomEtomLinks: (dirName) => fetch(`${BASE}/component/${encodeURIComponent(dirName)}/etom-etom-links`).then(json),
+  saveComponentEtomEtomLinks: (dirName, payload) => fetch(`${BASE}/component/${encodeURIComponent(dirName)}/etom-etom-links`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then((res) => res.json().then((body) => ({ status: res.status, ...body }))),
+  componentSidSidLinks: (dirName) => fetch(`${BASE}/component/${encodeURIComponent(dirName)}/sid-sid-links`).then(json),
+  saveComponentSidSidLinks: (dirName, payload) => fetch(`${BASE}/component/${encodeURIComponent(dirName)}/sid-sid-links`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then((res) => res.json().then((body) => ({ status: res.status, ...body }))),
   componentSupplement: (dirName) => fetch(`${BASE}/component/${encodeURIComponent(dirName)}/supplement`).then(json),
   // payload: { jiraBody, furtherBody, versionHistoryRows, releaseHistoryRows, acknowledgementsRows }
   saveComponentSupplement: (dirName, payload) => fetch(`${BASE}/component/${encodeURIComponent(dirName)}/supplement`, {

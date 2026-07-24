@@ -461,22 +461,24 @@ app.get('/api/components', (req, res) => {
   res.json({ components });
 });
 
-// eTOM-SID link tables (specifications/<dirName>/Diagrams/<ID>_eTOM_SID_Links.md)
-// document which eTOM activities connect to which SID ABEs, transcribed by
-// hand from each component's original spec PDF - the source of truth for
-// the "eTOM L2 - SID ABEs links" diagram. They're plain GFM tables with a
-// title and free-text provenance notes before/after, so parsing has to
-// locate the table by its separator row (`|---|---|...`) rather than by
-// exact header wording, and cell values that contain a literal `|` (the
-// "YAML eTOM"/"YAML SID" columns pack multiple pipe-delimited identifier
-// parts into one cell) escape it as `\|` to avoid being read as a column
-// break.
-const LINKS_COLUMNS = ['eTOM activity', 'SID ABE', 'Direction', 'YAML eTOM', 'YAML SID'];
-const LINKS_FIELDS = ['etomActivity', 'sidABE', 'direction', 'yamlETOM', 'yamlSID'];
-
-function linksFilePath(dirName) {
+// Link tables (specifications/<dirName>/Diagrams/<ID>_<suffix>.md) document
+// hand-maintained relationships the YAML alone can't express, transcribed by
+// hand from each component's original spec PDF: which eTOM activity
+// connects to which SID ABE (eTOM_SID_Links - the "eTOM L2 - SID ABEs links"
+// diagram), which eTOM activity connects directly to another eTOM activity
+// (eTOM_eTOM_Links), and which SID ABE connects directly to another SID ABE
+// (SID_SID_Links) - the latter two are links the same source diagram draws
+// that don't fit eTOM_SID_Links' schema, split into their own files (see
+// TMFC037_eTOM_eTOM_Links.md, TMFC035/TMFC039_SID_SID_Links.md for real
+// examples). They're plain GFM tables with a title and free-text provenance
+// notes before/after, so parsing has to locate the table by its separator
+// row (`|---|---|...`) rather than by exact header wording, and cell values
+// that contain a literal `|` (the "YAML ..." columns pack multiple
+// pipe-delimited identifier parts into one cell) escape it as `\|` to avoid
+// being read as a column break.
+function linksFilePath(dirName, suffix) {
   const id = dirName.split('-')[0];
-  return path.join(SPECIFICATIONS_DIR, dirName, 'Diagrams', `${id}_eTOM_SID_Links.md`);
+  return path.join(SPECIFICATIONS_DIR, dirName, 'Diagrams', `${id}_${suffix}.md`);
 }
 
 function splitTableRow(line) {
@@ -487,11 +489,11 @@ function splitTableRow(line) {
   return trimmed.split('|').map((cell) => cell.trim().split(PLACEHOLDER).join('|'));
 }
 
-function parseLinksMarkdown(text, id) {
+function parseLinksMarkdown(text, fields, defaultHeading) {
   const lines = text.split(/\r?\n/);
   const sepIdx = lines.findIndex((l) => /^\s*\|[\s:-]*-[\s:|-]*\|\s*$/.test(l));
 
-  let heading = `${id} eTOM–SID Links`;
+  let heading = defaultHeading;
   let headingLineIdx = -1;
   const firstNonBlank = lines.findIndex((l) => l.trim() !== '');
   if (firstNonBlank !== -1 && lines[firstNonBlank].trim().startsWith('#')) {
@@ -514,64 +516,102 @@ function parseLinksMarkdown(text, id) {
   const links = lines.slice(sepIdx + 1, dataEndIdx)
     .map((line) => splitTableRow(line))
     .filter((cells) => cells.some((c) => c !== ''))
-    .map((cells) => Object.fromEntries(LINKS_FIELDS.map((f, i) => [f, cells[i] || ''])));
+    .map((cells) => Object.fromEntries(fields.map((f, i) => [f, cells[i] || ''])));
 
   const notesAfter = lines.slice(dataEndIdx).join('\n').trim();
 
   return { heading, notesBefore, notesAfter, links };
 }
 
-function renderLinksMarkdown({ heading, notesBefore, notesAfter, links }) {
+function renderLinksMarkdown({ heading, notesBefore, notesAfter, links }, columns, fields) {
   const escapeCell = (v) => (v || '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
   const parts = [`# ${heading}`, ''];
   if (notesBefore?.trim()) parts.push(notesBefore.trim(), '');
-  parts.push(`| ${LINKS_COLUMNS.join(' | ')} |`);
-  parts.push(`|${LINKS_COLUMNS.map(() => '---').join('|')}|`);
+  parts.push(`| ${columns.join(' | ')} |`);
+  parts.push(`|${columns.map(() => '---').join('|')}|`);
   for (const row of links) {
-    parts.push(`| ${LINKS_FIELDS.map((f) => escapeCell(row[f])).join(' | ')} |`);
+    parts.push(`| ${fields.map((f) => escapeCell(row[f])).join(' | ')} |`);
   }
   if (notesAfter?.trim()) parts.push('', notesAfter.trim());
   parts.push('');
   return parts.join('\n');
 }
 
-app.get('/api/component/:dirName/links', (req, res) => {
-  const { dirName } = req.params;
-  if (!/^[\w.\-]+$/.test(dirName)) {
-    return res.status(400).json({ ok: false, error: 'Invalid dirName' });
-  }
-  const filePath = linksFilePath(dirName);
-  const id = dirName.split('-')[0];
-  if (!fs.existsSync(filePath)) {
-    return res.json({ ok: true, exists: false, heading: `${id} eTOM–SID Links`, notesBefore: '', notesAfter: '', links: [] });
-  }
-  try {
-    const parsed = parseLinksMarkdown(fs.readFileSync(filePath, 'utf8'), id);
-    res.json({ ok: true, exists: true, ...parsed });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
+// Column schema matched to the real checked-in files (not invented):
+// eTOM_eTOM_Links has no YAML cross-reference columns in any real example
+// (just the two activity labels + Direction); SID_SID_Links has the same
+// 5-column shape as eTOM_SID_Links but source/target are both SID ABEs.
+// "Direction" in the eTOM_eTOM/SID_SID tables is free text in practice
+// ("bidirectional" or "one-directional (Source -> Target)"), unlike
+// eTOM_SID_Links' fixed three-value Direction - so only eTOM_SID_Links'
+// Direction is a constrained dropdown; the other two are plain text fields.
+const LINK_TYPES = {
+  etomSid: {
+    suffix: 'eTOM_SID_Links',
+    route: 'links',
+    columns: ['eTOM activity', 'SID ABE', 'Direction', 'YAML eTOM', 'YAML SID'],
+    fields: ['etomActivity', 'sidABE', 'direction', 'yamlETOM', 'yamlSID'],
+    defaultHeading: (id) => `${id} eTOM–SID Links`,
+  },
+  etomEtom: {
+    suffix: 'eTOM_eTOM_Links',
+    route: 'etom-etom-links',
+    columns: ['Source eTOM activity', 'Target eTOM activity', 'Direction'],
+    fields: ['sourceActivity', 'targetActivity', 'direction'],
+    defaultHeading: (id) => `${id} eTOM–eTOM Links`,
+  },
+  sidSid: {
+    suffix: 'SID_SID_Links',
+    route: 'sid-sid-links',
+    columns: ['Source SID ABE', 'Target SID ABE', 'Direction', 'YAML source', 'YAML target'],
+    fields: ['sourceSID', 'targetSID', 'direction', 'yamlSource', 'yamlTarget'],
+    defaultHeading: (id) => `${id} SID–SID Links`,
+  },
+};
 
-app.post('/api/component/:dirName/links', (req, res) => {
-  const { dirName } = req.params;
-  if (!/^[\w.\-]+$/.test(dirName)) {
-    return res.status(400).json({ ok: false, error: 'Invalid dirName' });
-  }
-  const { heading, notesBefore, notesAfter, links } = req.body;
-  if (!Array.isArray(links)) {
-    return res.status(400).json({ ok: false, error: 'links must be an array' });
-  }
-  try {
-    const filePath = linksFilePath(dirName);
+function registerLinksRoutes(type) {
+  app.get(`/api/component/:dirName/${type.route}`, (req, res) => {
+    const { dirName } = req.params;
+    if (!/^[\w.\-]+$/.test(dirName)) {
+      return res.status(400).json({ ok: false, error: 'Invalid dirName' });
+    }
     const id = dirName.split('-')[0];
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, renderLinksMarkdown({ heading: heading || `${id} eTOM–SID Links`, notesBefore, notesAfter, links }), 'utf8');
-    res.json({ ok: true, path: filePath });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
+    const filePath = linksFilePath(dirName, type.suffix);
+    const defaultHeading = type.defaultHeading(id);
+    if (!fs.existsSync(filePath)) {
+      return res.json({ ok: true, exists: false, heading: defaultHeading, notesBefore: '', notesAfter: '', links: [] });
+    }
+    try {
+      const parsed = parseLinksMarkdown(fs.readFileSync(filePath, 'utf8'), type.fields, defaultHeading);
+      res.json({ ok: true, exists: true, ...parsed });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  app.post(`/api/component/:dirName/${type.route}`, (req, res) => {
+    const { dirName } = req.params;
+    if (!/^[\w.\-]+$/.test(dirName)) {
+      return res.status(400).json({ ok: false, error: 'Invalid dirName' });
+    }
+    const { heading, notesBefore, notesAfter, links } = req.body;
+    if (!Array.isArray(links)) {
+      return res.status(400).json({ ok: false, error: 'links must be an array' });
+    }
+    try {
+      const id = dirName.split('-')[0];
+      const filePath = linksFilePath(dirName, type.suffix);
+      const defaultHeading = type.defaultHeading(id);
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, renderLinksMarkdown({ heading: heading || defaultHeading, notesBefore, notesAfter, links }, type.columns, type.fields), 'utf8');
+      res.json({ ok: true, path: filePath });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+}
+
+Object.values(LINK_TYPES).forEach(registerLinksRoutes);
 
 // The <ID>_<Name>_Supplement.md file (specifications/<dirName>/Diagrams/) is
 // the hand-curated tail of a component's specification - Jira references,

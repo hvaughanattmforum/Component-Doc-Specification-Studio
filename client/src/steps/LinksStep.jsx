@@ -1,39 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
 
-const DIRECTIONS = ['bidirectional', 'activity consumes', 'activity produces'];
-const BLANK_LINK = { etomActivity: '', sidABE: '', direction: 'bidirectional', yamlETOM: '', yamlSID: '' };
+const ETOM_SID_DIRECTIONS = ['bidirectional', 'activity consumes', 'activity produces'];
 
-// The YAML eTOM/YAML SID cells can reference more than one entry (e.g. a
-// link driven by two related eTOM activities), joined with "; " in the
-// stored markdown - see TMFC005's "Loyalty Program Management / Loyalty
-// Program Operation" row for a real example.
+// The YAML eTOM/YAML SID (and similar cross-reference) cells can reference
+// more than one entry (e.g. a link driven by two related eTOM activities),
+// joined with "; " in the stored markdown - see TMFC005's "Loyalty Program
+// Management / Loyalty Program Operation" row for a real example.
 function parseMulti(str) {
   return (str || '').split(';').map((s) => s.trim()).filter(Boolean);
 }
 
-// The eTOM/SID pair a row actually connects - order-independent (picking
-// the same two eTOMs in a different order is still the same relationship)
-// and only meaningful once both sides are chosen, so a fresh blank row
-// isn't flagged as a duplicate of every other blank row.
-function pairKey(row) {
-  const etom = parseMulti(row.yamlETOM).slice().sort().join(';');
-  const sid = parseMulti(row.yamlSID).slice().sort().join(';');
-  if (!etom || !sid) return null;
-  return `${etom}||${sid}`;
-}
-
-// Constrains a YAML eTOM/YAML SID cell to entries already chosen in this
+// Constrains a YAML cross-reference cell to entries already chosen in this
 // component's eTOMs/SIDs pickers (on the Metadata tab), instead of free
 // text - those are the only values that can validly appear here, so typing
 // them by hand only invites typos and drift from the pickers. The
 // underlying value still supports multiple "; "-joined entries (see
-// parseMulti above - real files like TMFC005 have a row with two), but the
-// picker itself only ever shows one at a time: once a value is chosen, the
-// dropdown/Add control is replaced by just that value and its Remove
-// button, and picking is only offered again once it's removed. A
-// previously-stored value that isn't in the current options still shows,
-// flagged, and can be removed individually.
+// parseMulti above), but the picker itself only ever shows one at a time:
+// once a value is chosen, the dropdown/Add control is replaced by just that
+// value and its Remove button, and picking is only offered again once it's
+// removed. A previously-stored value that isn't in the current options
+// still shows, flagged, and can be removed individually - this is also how
+// a hand-transcribed "external (cross-component)" reference (real examples:
+// TMFC035's SID-SID links) survives even though this picker can't add one.
 function MultiSelectField({ label, hint, options, valueString, onChange }) {
   const selected = parseMulti(valueString);
   const available = options.filter((o) => !selected.includes(o));
@@ -86,11 +75,34 @@ function MultiSelectField({ label, hint, options, valueString, onChange }) {
   );
 }
 
-// Editor for specifications/<dirName>/Diagrams/<ID>_eTOM_SID_Links.md - the
-// hand-transcribed table backing each component's "eTOM L2 - SID ABEs links"
-// diagram. Only meaningful once a component directory exists on disk, so
-// this is hidden while creating a brand-new (not yet saved) component.
-export default function LinksStep({ dirName, eTOMs, SIDs }) {
+function FieldInput({ field, value, onChange }) {
+  if (field.kind === 'select') {
+    return (
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        {field.options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    );
+  }
+  if (field.kind === 'multiselect') {
+    return (
+      <MultiSelectField
+        label={field.label}
+        hint={field.hint}
+        options={field.options}
+        valueString={value}
+        onChange={onChange}
+      />
+    );
+  }
+  return <input type="text" value={value} onChange={(e) => onChange(e.target.value)} />;
+}
+
+// One editable link table backing a Diagrams/<ID>_<suffix>.md file - reused
+// for the eTOM-SID, eTOM-eTOM and SID-SID link tables, which share the same
+// heading/notes/table-of-rows shape and only differ in their columns (see
+// `fields` below) and, for eTOM-SID, a constrained Direction dropdown
+// instead of free text.
+function LinksPanel({ dirName, title, helpText, fields, blankRow, pairKeyFn, getApi, saveApi }) {
   const [data, setData] = useState(null); // { exists, heading, notesBefore, notesAfter, links }
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState(null); // { ok, error? }
@@ -104,7 +116,7 @@ export default function LinksStep({ dirName, eTOMs, SIDs }) {
     setData(null);
     setResult(null);
     if (!dirName) return;
-    api.componentLinks(dirName).then((d) => {
+    getApi(dirName).then((d) => {
       if (d.exists) {
         setData({ ...d, justCreated: false });
         return;
@@ -113,7 +125,7 @@ export default function LinksStep({ dirName, eTOMs, SIDs }) {
       // right away instead of only writing one the first time "Save links"
       // is clicked, so every component that's been opened here has a file
       // in its Diagrams/ folder ready to fill in (or leave empty).
-      api.saveComponentLinks(dirName, { heading: d.heading, notesBefore: '', notesAfter: '', links: [] })
+      saveApi(dirName, { heading: d.heading, notesBefore: '', notesAfter: '', links: [] })
         .then(() => setData({ ...d, exists: true, justCreated: true }))
         .catch((err) => {
           setData(d);
@@ -125,7 +137,7 @@ export default function LinksStep({ dirName, eTOMs, SIDs }) {
   if (!dirName) {
     return (
       <div className="panel panel-white">
-        <h3 style={{ marginTop: 0 }}>eTOM&ndash;SID links</h3>
+        <h3 style={{ marginTop: 0 }}>{title}</h3>
         <p className="hint">Available once this component has been saved at least once.</p>
       </div>
     );
@@ -134,7 +146,7 @@ export default function LinksStep({ dirName, eTOMs, SIDs }) {
   if (!data) {
     return (
       <div className="panel panel-white">
-        <h3 style={{ marginTop: 0 }}>eTOM&ndash;SID links</h3>
+        <h3 style={{ marginTop: 0 }}>{title}</h3>
         <div className="hint">Loading...</div>
       </div>
     );
@@ -145,10 +157,10 @@ export default function LinksStep({ dirName, eTOMs, SIDs }) {
     links[i] = { ...links[i], [field]: value };
     setData({ ...data, links });
   };
-  const addRow = () => setData({ ...data, links: [...data.links, { ...BLANK_LINK }] });
+  const addRow = () => setData({ ...data, links: [...data.links, { ...blankRow }] });
   const removeRow = (i) => setData({ ...data, links: data.links.filter((_, idx) => idx !== i) });
 
-  const pairKeys = data.links.map(pairKey);
+  const pairKeys = pairKeyFn ? data.links.map(pairKeyFn) : [];
   const duplicateRows = new Set();
   pairKeys.forEach((k, i) => {
     if (k === null) return;
@@ -162,7 +174,7 @@ export default function LinksStep({ dirName, eTOMs, SIDs }) {
     setSaving(true);
     setResult(null);
     try {
-      const res = await api.saveComponentLinks(dirName, {
+      const res = await saveApi(dirName, {
         heading: data.heading,
         notesBefore: data.notesBefore,
         notesAfter: data.notesAfter,
@@ -183,8 +195,8 @@ export default function LinksStep({ dirName, eTOMs, SIDs }) {
 
   return (
     <div className="panel panel-white">
-      <h3 style={{ marginTop: 0 }}>eTOM&ndash;SID links <span className="hint">{data.heading}{data.justCreated ? ' — file just created' : ''}</span></h3>
-      <p className="hint">These links are to ensure that the SID eTOM links diagram is drawn correctly in the specification document, and do not form part of the specification as such.</p>
+      <h3 style={{ marginTop: 0 }}>{title} <span className="hint">{data.heading}{data.justCreated ? ' — file just created' : ''}</span></h3>
+      <p className="hint">{helpText}</p>
 
       <div className="card-list">
         {data.links.map((row, i) => {
@@ -194,39 +206,22 @@ export default function LinksStep({ dirName, eTOMs, SIDs }) {
             <div className="card" key={i} style={{ paddingTop: 14, ...(isDuplicate ? { borderColor: 'var(--danger)' } : null) }}>
               {isDuplicate && (
                 <p className="hint" style={{ color: 'var(--danger)' }}>
-                  This eTOM/SID pair is already captured by another row - each relationship should appear once.
+                  This pair is already captured by another row - each relationship should appear once.
                 </p>
               )}
-              <div className="row">
-                <div className="field">
-                  <label>eTOM diagram display Label</label>
-                  <input type="text" value={row.etomActivity} onChange={(e) => updateRow(i, 'etomActivity', e.target.value)} />
+              {fields.filter((f) => f.kind !== 'multiselect').length > 0 && (
+                <div className="row">
+                  {fields.filter((f) => f.kind !== 'multiselect').map((f) => (
+                    <div className="field" key={f.key}>
+                      <label>{f.label}</label>
+                      <FieldInput field={f} value={row[f.key]} onChange={(v) => updateRow(i, f.key, v)} />
+                    </div>
+                  ))}
                 </div>
-                <div className="field">
-                  <label>SID diagram display label</label>
-                  <input type="text" value={row.sidABE} onChange={(e) => updateRow(i, 'sidABE', e.target.value)} />
-                </div>
-                <div className="field">
-                  <label>Direction</label>
-                  <select value={row.direction} onChange={(e) => updateRow(i, 'direction', e.target.value)}>
-                    {DIRECTIONS.map((d) => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-              </div>
-              <MultiSelectField
-                label="YAML eTOM"
-                hint="from the eTOMs picker on the Metadata tab"
-                options={eTOMs}
-                valueString={row.yamlETOM}
-                onChange={(v) => updateRow(i, 'yamlETOM', v)}
-              />
-              <MultiSelectField
-                label="YAML SID"
-                hint="from the SIDs picker on the Metadata tab"
-                options={SIDs}
-                valueString={row.yamlSID}
-                onChange={(v) => updateRow(i, 'yamlSID', v)}
-              />
+              )}
+              {fields.filter((f) => f.kind === 'multiselect').map((f) => (
+                <FieldInput key={f.key} field={f} value={row[f.key]} onChange={(v) => updateRow(i, f.key, v)} />
+              ))}
               <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
                 <button type="button" className="save" onClick={() => save(i)} disabled={saving || duplicateRows.size > 0}>
                   {saving && isActive ? 'Saving...' : 'Save'}
@@ -250,5 +245,100 @@ export default function LinksStep({ dirName, eTOMs, SIDs }) {
         )}
       </div>
     </div>
+  );
+}
+
+// The eTOM/SID pair a row actually connects - each side's own multi-value
+// list is order-independent (picking the same two eTOMs in a different
+// order is still the same relationship) and only meaningful once both sides
+// are chosen, so a fresh blank row isn't flagged as a duplicate of every
+// other blank row.
+function unorderedPairKey(a, b) {
+  const left = parseMulti(a).slice().sort().join(';');
+  const right = parseMulti(b).slice().sort().join(';');
+  if (!left || !right) return null;
+  return `${left}||${right}`;
+}
+
+// Source/target are distinct roles (a "source → target" link isn't the same
+// row as its reverse), so unlike the eTOM-SID pair key above, this doesn't
+// sort the two sides - a row and its mirror image are two different,
+// individually-valid rows, not duplicates of each other.
+function orderedPairKey(a, b) {
+  const left = (a || '').trim().toLowerCase();
+  const right = (b || '').trim().toLowerCase();
+  if (!left || !right) return null;
+  return `${left}||${right}`;
+}
+
+// Editor for the three hand-maintained link tables under
+// specifications/<dirName>/Diagrams/ - the eTOM-SID cross-links backing the
+// "eTOM L2 - SID ABEs links" diagram, plus the eTOM-eTOM and SID-SID links
+// the same source diagram sometimes draws directly between two entities of
+// the same taxonomy (real examples: TMFC037_eTOM_eTOM_Links.md,
+// TMFC035/TMFC039_SID_SID_Links.md). Only meaningful once a component
+// directory exists on disk, so this is hidden while creating a brand-new
+// (not yet saved) component.
+export default function LinksStep({ dirName, eTOMs, SIDs }) {
+  if (!dirName) {
+    return (
+      <div className="panel panel-white">
+        <h3 style={{ marginTop: 0 }}>Links</h3>
+        <p className="hint">Available once this component has been saved at least once.</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <LinksPanel
+        dirName={dirName}
+        title={<>eTOM&ndash;SID links</>}
+        helpText="These links are to ensure that the SID eTOM links diagram is drawn correctly in the specification document, and do not form part of the specification as such."
+        getApi={api.componentLinks}
+        saveApi={api.saveComponentLinks}
+        blankRow={{ etomActivity: '', sidABE: '', direction: 'bidirectional', yamlETOM: '', yamlSID: '' }}
+        pairKeyFn={(row) => unorderedPairKey(row.yamlETOM, row.yamlSID)}
+        fields={[
+          { key: 'etomActivity', label: 'eTOM diagram display Label', kind: 'text' },
+          { key: 'sidABE', label: 'SID diagram display label', kind: 'text' },
+          { key: 'direction', label: 'Direction', kind: 'select', options: ETOM_SID_DIRECTIONS },
+          { key: 'yamlETOM', label: 'YAML eTOM', kind: 'multiselect', options: eTOMs, hint: 'from the eTOMs picker on the Metadata tab' },
+          { key: 'yamlSID', label: 'YAML SID', kind: 'multiselect', options: SIDs, hint: 'from the SIDs picker on the Metadata tab' },
+        ]}
+      />
+
+      <LinksPanel
+        dirName={dirName}
+        title={<>eTOM&ndash;eTOM links</>}
+        helpText="Direct links between two eTOM activities on the same source diagram, kept separate from the eTOM–SID table above since they connect two eTOM entities rather than an eTOM activity to a SID ABE."
+        getApi={api.componentEtomEtomLinks}
+        saveApi={api.saveComponentEtomEtomLinks}
+        blankRow={{ sourceActivity: '', targetActivity: '', direction: 'bidirectional' }}
+        pairKeyFn={(row) => orderedPairKey(row.sourceActivity, row.targetActivity)}
+        fields={[
+          { key: 'sourceActivity', label: 'Source eTOM activity display label', kind: 'text' },
+          { key: 'targetActivity', label: 'Target eTOM activity display label', kind: 'text' },
+          { key: 'direction', label: 'Direction', kind: 'text' },
+        ]}
+      />
+
+      <LinksPanel
+        dirName={dirName}
+        title={<>SID&ndash;SID links</>}
+        helpText="Direct links between two SID entities on the same source diagram, kept separate from the eTOM–SID table above since they connect two SID entities rather than a SID ABE to an eTOM activity."
+        getApi={api.componentSidSidLinks}
+        saveApi={api.saveComponentSidSidLinks}
+        blankRow={{ sourceSID: '', targetSID: '', direction: 'bidirectional', yamlSource: '', yamlTarget: '' }}
+        pairKeyFn={(row) => orderedPairKey(row.yamlSource || row.sourceSID, row.yamlTarget || row.targetSID)}
+        fields={[
+          { key: 'sourceSID', label: 'Source SID display label', kind: 'text' },
+          { key: 'targetSID', label: 'Target SID display label', kind: 'text' },
+          { key: 'direction', label: 'Direction', kind: 'text' },
+          { key: 'yamlSource', label: 'YAML source', kind: 'multiselect', options: SIDs, hint: 'from the SIDs picker on the Metadata tab' },
+          { key: 'yamlTarget', label: 'YAML target', kind: 'multiselect', options: SIDs, hint: 'from the SIDs picker on the Metadata tab' },
+        ]}
+      />
+    </>
   );
 }
