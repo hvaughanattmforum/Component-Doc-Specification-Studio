@@ -40,6 +40,18 @@ export const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }).then((res) => res.json().then((body) => ({ status: res.status, ...body }))),
+  componentEtomDescriptions: (dirName) => fetch(`${BASE}/component/${encodeURIComponent(dirName)}/etom-descriptions`).then(json),
+  saveComponentEtomDescriptions: (dirName, payload) => fetch(`${BASE}/component/${encodeURIComponent(dirName)}/etom-descriptions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then((res) => res.json().then((body) => ({ status: res.status, ...body }))),
+  componentFFDescriptions: (dirName) => fetch(`${BASE}/component/${encodeURIComponent(dirName)}/ff-descriptions`).then(json),
+  saveComponentFFDescriptions: (dirName, payload) => fetch(`${BASE}/component/${encodeURIComponent(dirName)}/ff-descriptions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then((res) => res.json().then((body) => ({ status: res.status, ...body }))),
   componentSupplement: (dirName) => fetch(`${BASE}/component/${encodeURIComponent(dirName)}/supplement`).then(json),
   // payload: { jiraBody, furtherBody, versionHistoryRows, releaseHistoryRows, acknowledgementsRows }
   saveComponentSupplement: (dirName, payload) => fetch(`${BASE}/component/${encodeURIComponent(dirName)}/supplement`, {

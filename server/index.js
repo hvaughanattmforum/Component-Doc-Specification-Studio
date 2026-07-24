@@ -613,6 +613,39 @@ function registerLinksRoutes(type) {
 
 Object.values(LINK_TYPES).forEach(registerLinksRoutes);
 
+// Description lookup files (Diagrams/<ID>_eTOM_Descriptions.md,
+// Diagrams/<ID>_FF_Descriptions.md) hold prose the YAML has no room for:
+// each eTOM activity's, or each Functional Framework function's, own
+// descriptive text (and, for FF, its two Aggregate Function Level columns),
+// transcribed by hand from the component's original published .docx/.pdf -
+// that text lives in the eTOM/Functional Framework standards themselves,
+// not in this component's own YAML (see the component-specification-markdown
+// skill's references/diagrams.md, "eTOM/Functional Framework descriptions").
+// Same heading + free-text source note + GFM table shape as the link tables
+// above (real examples: TMFC005_eTOM_Descriptions.md/_FF_Descriptions.md),
+// so this reuses linksFilePath/parseLinksMarkdown/renderLinksMarkdown/
+// registerLinksRoutes as-is - "links" in those names is a misnomer once
+// shared like this, but they were already fully generic (column/field
+// arrays of any shape), so there's nothing description-specific to add.
+const DESCRIPTION_TYPES = {
+  etom: {
+    suffix: 'eTOM_Descriptions',
+    route: 'etom-descriptions',
+    columns: ['Identifier', 'Description'],
+    fields: ['identifier', 'description'],
+    defaultHeading: (id) => `${id} eTOM Business Activity Descriptions`,
+  },
+  ff: {
+    suffix: 'FF_Descriptions',
+    route: 'ff-descriptions',
+    columns: ['Function ID', 'Function Description', 'Aggregate Function Level 1', 'Aggregate Function Level 2'],
+    fields: ['functionId', 'functionDescription', 'aggregateLevel1', 'aggregateLevel2'],
+    defaultHeading: (id) => `${id} Functional Framework Function Descriptions`,
+  },
+};
+
+Object.values(DESCRIPTION_TYPES).forEach(registerLinksRoutes);
+
 // The <ID>_<Name>_Supplement.md file (specifications/<dirName>/Diagrams/) is
 // the hand-curated tail of a component's specification - Jira references,
 // further resources, and the administrative appendix (document/release
