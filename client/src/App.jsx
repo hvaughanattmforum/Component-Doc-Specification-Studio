@@ -23,7 +23,7 @@ const STEPS = ['Metadata', 'Links', 'Descriptions', 'Exposed APIs', 'Dependent A
 // doesn't affect step order or navigation.
 const STEP_GROUPS = [
   { label: 'Component YAML', indices: [0, 3, 4, 5, 6] },
-  { label: 'Diagrams (.md files)', indices: [1, 2, 7] },
+  { label: 'Component Spec Document', indices: [1, 2, 7] },
 ];
 
 function blankState() {
@@ -139,16 +139,16 @@ export default function App() {
             <button className="step-pill" onClick={backToStart}>&larr; Start over</button>
           </div>
           <div className="step-groups">
-            {STEP_GROUPS.map((group) => (
+            {STEP_GROUPS.map((group, groupIdx) => (
               <div className="step-group" key={group.label}>
                 <span className="step-group-label">{group.label}</span>
-                {group.indices.map((i) => (
+                {group.indices.map((i, posIdx) => (
                   <button
                     key={STEPS[i]}
                     className={`step-pill ${i === step ? 'active' : ''}`}
                     onClick={() => setStep(i)}
                   >
-                    {i + 1}. {STEPS[i]}
+                    {groupIdx + 1}.{posIdx + 1}. {STEPS[i]}
                   </button>
                 ))}
               </div>
