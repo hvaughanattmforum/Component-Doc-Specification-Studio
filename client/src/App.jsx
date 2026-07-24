@@ -13,6 +13,17 @@ import { stateFromComponent } from './parseComponent.js';
 
 const STEPS = ['Metadata', 'Links', 'Exposed APIs', 'Dependent APIs', 'Events', 'Review & Save', 'Document History'];
 
+// Which file each step edits: most steps build up `state` and only write it
+// to the component's main YAML when Review & Save is used, while Links and
+// Document History write straight to their own .md files under that
+// component's Diagrams/ folder (see LinksStep.jsx / DocumentHistoryStep.jsx)
+// independently of the YAML/Save flow. Grouped here purely for the step
+// pills' display below - doesn't affect step order or navigation.
+const STEP_GROUPS = [
+  { label: 'Component YAML', indices: [0, 2, 3, 4, 5] },
+  { label: 'Diagrams (.md files)', indices: [1, 6] },
+];
+
 function blankState() {
   return {
     id: '',
@@ -122,16 +133,23 @@ export default function App() {
 
       {view === 'wizard' && mode !== null && (
         <>
-          <div className="steps">
+          <div className="steps" style={{ marginBottom: 12 }}>
             <button className="step-pill" onClick={backToStart}>&larr; Start over</button>
-            {STEPS.map((label, i) => (
-              <button
-                key={label}
-                className={`step-pill ${i === step ? 'active' : ''}`}
-                onClick={() => setStep(i)}
-              >
-                {i + 1}. {label}
-              </button>
+          </div>
+          <div className="step-groups">
+            {STEP_GROUPS.map((group) => (
+              <div className="step-group" key={group.label}>
+                <span className="step-group-label">{group.label}</span>
+                {group.indices.map((i) => (
+                  <button
+                    key={STEPS[i]}
+                    className={`step-pill ${i === step ? 'active' : ''}`}
+                    onClick={() => setStep(i)}
+                  >
+                    {i + 1}. {STEPS[i]}
+                  </button>
+                ))}
+              </div>
             ))}
           </div>
 
