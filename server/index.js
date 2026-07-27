@@ -619,34 +619,19 @@ function registerLinksRoutes(type) {
 
 Object.values(LINK_TYPES).forEach(registerLinksRoutes);
 
-// The SID reference framework was overhauled in v26.0 (see each
-// docs/Common_Links file's "Version note" - every link here was confirmed to
-// resolve identically in sid_v26.0.json before being bumped from v25.0), so
-// new/edited rows shouldn't reintroduce a pre-v26.0 SID reference.
-const MIN_SID_VERSION = 'v26.0';
-
-// A cell like "Shared_Domain|Permission_ABE|Permission_BE|v26.0" packs its
-// SID version in as the last pipe-delimited segment; this just scans the raw
-// cell text for any vNN.N-shaped token rather than assuming a fixed position,
-// since not every cell in these files carries a version at all (e.g. the
-// "*(no match in TMFC022's own YAML)*" placeholder).
-function oldSidVersionsIn(value) {
-  const tokens = (value || '').match(/\bv\d+(?:\.\d+)*\b/gi) || [];
-  return tokens.filter((t) => compareVersions(t, MIN_SID_VERSION) < 0);
-}
-
 // Consolidated, repo-root-level link tables under docs/Common_Links/ - same
 // "GFM table + free-text notes" shape as the per-component link files above,
 // so parsing/rendering is reused, but there's exactly one file per type
-// (not one per component) and every SID-bearing cell is checked against
-// MIN_SID_VERSION before a save is allowed to land on disk.
+// (not one per component). A cell referencing a pre-v26.0 SID version is
+// flagged as a warning client-side (see CommonPatternsStep.jsx) rather than
+// enforced here - older versions are still legitimate, so the server accepts
+// whatever the client sends.
 const COMMON_LINK_TYPES = {
   commonSidSid: {
     route: 'common-sid-sid-links',
     fileName: 'Common_SID_SID_Links.md',
     columns: ['Source SID ABE', 'Target SID ABE', 'Direction', 'YAML source', 'YAML target'],
     fields: ['sourceSID', 'targetSID', 'direction', 'yamlSource', 'yamlTarget'],
-    versionFields: ['yamlSource', 'yamlTarget'],
     defaultHeading: 'Common SID–SID Links',
   },
   commonComponentSidOwner: {
@@ -654,7 +639,6 @@ const COMMON_LINK_TYPES = {
     fileName: 'Common_Component_SID_owner_Links.md',
     columns: ['Display SID', 'Depicted under component', 'SID element as present in the YAML file'],
     fields: ['displaySID', 'component', 'sidElement'],
-    versionFields: ['sidElement'],
     defaultHeading: 'Common Component–SID Links',
   },
 };
@@ -678,18 +662,6 @@ function registerCommonLinksRoutes(type) {
     const { heading, notesBefore, notesAfter, links } = req.body;
     if (!Array.isArray(links)) {
       return res.status(400).json({ ok: false, error: 'links must be an array' });
-    }
-    for (const row of links) {
-      for (const field of type.versionFields) {
-        const bad = oldSidVersionsIn(row[field]);
-        if (bad.length) {
-          const label = type.columns[type.fields.indexOf(field)];
-          return res.status(400).json({
-            ok: false,
-            error: `"${label}" references ${bad.join(', ')} - only ${MIN_SID_VERSION} or later is allowed.`,
-          });
-        }
-      }
     }
     try {
       fs.mkdirSync(path.dirname(filePath), { recursive: true });

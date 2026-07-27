@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
 
-// Mirrors the server's compareVersions (server/index.js) so a too-old SID
-// version can be flagged in the browser before a save round-trip ever
-// happens - see MIN_SID_VERSION below for why v26.0 is the floor.
+// Mirrors the server's compareVersions (server/index.js) so a pre-v26.0 SID
+// version can be flagged in the browser - see MIN_SID_VERSION below.
 function compareVersions(a, b) {
   const toParts = (v) => v.replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
   const pa = toParts(a);
@@ -17,8 +16,10 @@ function compareVersions(a, b) {
 
 // The SID reference framework was overhauled in v26.0 - every link recorded
 // in docs/Common_Links/ has already been confirmed to resolve identically in
-// sid_v26.0.json (see each file's "Version note"), so no cell here should
-// point at an earlier SID version going forward.
+// sid_v26.0.json (see each file's "Version note"). Older versions are still
+// valid (a component's own history may genuinely predate v26.0), so this is
+// a warning threshold, not a hard floor - it flags a cell for a second look
+// rather than blocking the save.
 const MIN_SID_VERSION = 'v26.0';
 
 function oldSidVersionsIn(value) {
@@ -35,10 +36,11 @@ function orderedPairKey(a, b) {
 
 // One editable link table backing a docs/Common_Links/*.md file. Modeled on
 // LinksStep.jsx's LinksPanel, but these files aren't scoped to a single
-// component (no dirName), so there's no "available once saved" gate, and
-// every field flagged in versionFields is checked against MIN_SID_VERSION -
-// a row with an old SID version blocks saving the whole file, same as an
-// unresolved duplicate pair.
+// component (no dirName), so there's no "available once saved" gate. Every
+// field flagged in versionFields is checked against MIN_SID_VERSION, but
+// unlike an unresolved duplicate pair, an old SID version is only a warning -
+// pre-v26.0 references are real and expected in older components' history,
+// so they're flagged, not blocked from saving.
 function CommonLinksPanel({ title, helpText, fields, blankRow, pairKeyFn, versionFields, getApi, saveApi }) {
   const [data, setData] = useState(null); // { exists, heading, notesBefore, notesAfter, links }
   const [saving, setSaving] = useState(false);
@@ -79,10 +81,9 @@ function CommonLinksPanel({ title, helpText, fields, blankRow, pairKeyFn, versio
   const rowVersionIssues = data.links.map((row) => (versionFields || [])
     .map((f) => ({ field: f, tokens: oldSidVersionsIn(row[f]) }))
     .filter((issue) => issue.tokens.length > 0));
-  const hasVersionIssues = rowVersionIssues.some((issues) => issues.length > 0);
 
   const save = async (rowIndex) => {
-    if (duplicateRows.size > 0 || hasVersionIssues) return;
+    if (duplicateRows.size > 0) return;
     setActiveRow(rowIndex ?? null);
     setSaving(true);
     setResult(null);
@@ -115,18 +116,19 @@ function CommonLinksPanel({ title, helpText, fields, blankRow, pairKeyFn, versio
         {data.links.map((row, i) => {
           const isDuplicate = duplicateRows.has(i);
           const versionIssues = rowVersionIssues[i];
-          const isInvalid = isDuplicate || versionIssues.length > 0;
+          const hasVersionWarning = versionIssues.length > 0;
           const isActive = activeRow === i;
+          const borderColor = isDuplicate ? 'var(--danger)' : (hasVersionWarning ? 'var(--help)' : null);
           return (
-            <div className="card" key={i} style={{ paddingTop: 14, ...(isInvalid ? { borderColor: 'var(--danger)' } : null) }}>
+            <div className="card" key={i} style={{ paddingTop: 14, ...(borderColor ? { borderColor } : null) }}>
               {isDuplicate && (
                 <p className="hint" style={{ color: 'var(--danger)' }}>
                   This pair is already captured by another row - each relationship should appear once.
                 </p>
               )}
               {versionIssues.map((issue) => (
-                <p className="hint" style={{ color: 'var(--danger)' }} key={issue.field}>
-                  {fields.find((f) => f.key === issue.field)?.label || issue.field} references {issue.tokens.join(', ')} &mdash; only {MIN_SID_VERSION} or later is allowed.
+                <p className="hint" style={{ color: 'var(--help)' }} key={issue.field}>
+                  Warning: {fields.find((f) => f.key === issue.field)?.label || issue.field} references {issue.tokens.join(', ')} &mdash; earlier than {MIN_SID_VERSION}.
                 </p>
               ))}
               <div className="row">
@@ -138,12 +140,12 @@ function CommonLinksPanel({ title, helpText, fields, blankRow, pairKeyFn, versio
                 ))}
               </div>
               <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
-                <button type="button" className="save" onClick={() => save(i)} disabled={saving || isInvalid}>
+                <button type="button" className="save" onClick={() => save(i)} disabled={saving || isDuplicate}>
                   {saving && isActive ? 'Saving...' : 'Save'}
                 </button>
                 {isActive && result?.ok && <span className="hint" style={{ color: 'var(--ok)' }}>Saved.</span>}
                 {isActive && result?.error && <span className="hint" style={{ color: 'var(--danger)' }}>{result.error}</span>}
-                {isInvalid && <span className="hint" style={{ color: 'var(--danger)' }}>Resolve the issue above to save.</span>}
+                {isDuplicate && <span className="hint" style={{ color: 'var(--danger)' }}>Resolve the duplicate pair above to save.</span>}
                 <button type="button" className="remove" onClick={() => removeRow(i)} style={{ marginLeft: 'auto' }}>Remove</button>
               </div>
             </div>
