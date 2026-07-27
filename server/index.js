@@ -51,6 +51,12 @@ const SPECIFICATIONS_DIR = path.join(REPO_ROOT, 'specifications');
 const SCHEMA_PATH = path.join(REPO_ROOT, 'ci', 'component.schema.json');
 const API_INDEX_PATH = path.join(REPO_ROOT, 'apiIndex.json');
 
+// Cross-component "common architectural patterns" link tables - unlike the
+// per-component Diagrams/*.md files below, these two live once at the repo
+// root (docs/Common_Links/) and consolidate links that span multiple
+// components' own diagrams (see registerCommonLinksRoutes further down).
+const COMMON_LINKS_DIR = path.join(REPO_ROOT, 'docs', 'Common_Links');
+
 // Reference taxonomy catalogs (eTOM/SID/Functional Framework), pre-converted
 // from the official TMForum GB921/GB922/GB1033 Excel exports by
 // scripts/parse_reference_data.py. This directory is configured fully
@@ -612,6 +618,94 @@ function registerLinksRoutes(type) {
 }
 
 Object.values(LINK_TYPES).forEach(registerLinksRoutes);
+
+// The SID reference framework was overhauled in v26.0 (see each
+// docs/Common_Links file's "Version note" - every link here was confirmed to
+// resolve identically in sid_v26.0.json before being bumped from v25.0), so
+// new/edited rows shouldn't reintroduce a pre-v26.0 SID reference.
+const MIN_SID_VERSION = 'v26.0';
+
+// A cell like "Shared_Domain|Permission_ABE|Permission_BE|v26.0" packs its
+// SID version in as the last pipe-delimited segment; this just scans the raw
+// cell text for any vNN.N-shaped token rather than assuming a fixed position,
+// since not every cell in these files carries a version at all (e.g. the
+// "*(no match in TMFC022's own YAML)*" placeholder).
+function oldSidVersionsIn(value) {
+  const tokens = (value || '').match(/\bv\d+(?:\.\d+)*\b/gi) || [];
+  return tokens.filter((t) => compareVersions(t, MIN_SID_VERSION) < 0);
+}
+
+// Consolidated, repo-root-level link tables under docs/Common_Links/ - same
+// "GFM table + free-text notes" shape as the per-component link files above,
+// so parsing/rendering is reused, but there's exactly one file per type
+// (not one per component) and every SID-bearing cell is checked against
+// MIN_SID_VERSION before a save is allowed to land on disk.
+const COMMON_LINK_TYPES = {
+  commonSidSid: {
+    route: 'common-sid-sid-links',
+    fileName: 'Common_SID_SID_Links.md',
+    columns: ['Source SID ABE', 'Target SID ABE', 'Direction', 'YAML source', 'YAML target'],
+    fields: ['sourceSID', 'targetSID', 'direction', 'yamlSource', 'yamlTarget'],
+    versionFields: ['yamlSource', 'yamlTarget'],
+    defaultHeading: 'Common SID–SID Links',
+  },
+  commonComponentSidOwner: {
+    route: 'common-component-sid-owner-links',
+    fileName: 'Common_Component_SID_owner_Links.md',
+    columns: ['Display SID', 'Depicted under component', 'SID element as present in the YAML file'],
+    fields: ['displaySID', 'component', 'sidElement'],
+    versionFields: ['sidElement'],
+    defaultHeading: 'Common Component–SID Links',
+  },
+};
+
+function registerCommonLinksRoutes(type) {
+  const filePath = path.join(COMMON_LINKS_DIR, type.fileName);
+
+  app.get(`/api/${type.route}`, (req, res) => {
+    if (!fs.existsSync(filePath)) {
+      return res.json({ ok: true, exists: false, heading: type.defaultHeading, notesBefore: '', notesAfter: '', links: [] });
+    }
+    try {
+      const parsed = parseLinksMarkdown(fs.readFileSync(filePath, 'utf8'), type.fields, type.defaultHeading);
+      res.json({ ok: true, exists: true, ...parsed });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  app.post(`/api/${type.route}`, (req, res) => {
+    const { heading, notesBefore, notesAfter, links } = req.body;
+    if (!Array.isArray(links)) {
+      return res.status(400).json({ ok: false, error: 'links must be an array' });
+    }
+    for (const row of links) {
+      for (const field of type.versionFields) {
+        const bad = oldSidVersionsIn(row[field]);
+        if (bad.length) {
+          const label = type.columns[type.fields.indexOf(field)];
+          return res.status(400).json({
+            ok: false,
+            error: `"${label}" references ${bad.join(', ')} - only ${MIN_SID_VERSION} or later is allowed.`,
+          });
+        }
+      }
+    }
+    try {
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(
+        filePath,
+        renderLinksMarkdown({ heading: heading || type.defaultHeading, notesBefore, notesAfter, links }, type.columns, type.fields),
+        'utf8',
+      );
+      res.json({ ok: true, path: filePath });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+}
+
+Object.values(COMMON_LINK_TYPES).forEach(registerCommonLinksRoutes);
 
 // Description lookup files (Diagrams/<ID>_eTOM_Descriptions.md,
 // Diagrams/<ID>_FF_Descriptions.md) hold prose the YAML has no room for:
