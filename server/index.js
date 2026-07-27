@@ -350,6 +350,11 @@ app.get('/api/api-resources', async (req, res) => {
 });
 
 // TMF API catalog (id/version/name/swagger url) for the exposed/dependent API pickers.
+// Excludes TMFnnnE-suffixed entries - every one of those in apiIndex.json is
+// an "Asynchronous" event-driven variant of a regular API (confirmed by
+// name, e.g. "TMF620E ... Product Catalog Management API Asynchronous"),
+// and this app's exposed/dependent API pickers are for the synchronous REST
+// APIs a component conforms to - async APIs aren't a valid pick there.
 app.get('/api/apis', (req, res) => {
   if (!fs.existsSync(API_INDEX_PATH)) return res.json({ apis: [] });
   const raw = JSON.parse(fs.readFileSync(API_INDEX_PATH, 'utf8'));
@@ -362,7 +367,8 @@ app.get('/api/apis', (req, res) => {
       name: val.name,
       swagger: val.swagger,
     };
-  }).sort((a, b) => a.id.localeCompare(b.id) || a.version.localeCompare(b.version));
+  }).filter((a) => !/E$/i.test(a.id))
+    .sort((a, b) => a.id.localeCompare(b.id) || a.version.localeCompare(b.version));
   res.json({ apis });
 });
 
