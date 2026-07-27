@@ -630,15 +630,15 @@ const COMMON_LINK_TYPES = {
   commonSidSid: {
     route: 'common-sid-sid-links',
     fileName: 'Common_SID_SID_Links.md',
-    columns: ['Source SID ABE', 'Target SID ABE', 'Direction', 'YAML source', 'YAML target'],
-    fields: ['sourceSID', 'targetSID', 'direction', 'yamlSource', 'yamlTarget'],
+    columns: ['Direction', 'YAML source', 'YAML target'],
+    fields: ['direction', 'yamlSource', 'yamlTarget'],
     defaultHeading: 'Common SID–SID Links',
   },
   commonComponentSidOwner: {
     route: 'common-component-sid-owner-links',
     fileName: 'Common_Component_SID_owner_Links.md',
-    columns: ['Display SID', 'Depicted under component', 'SID element as present in the YAML file'],
-    fields: ['displaySID', 'component', 'sidElement'],
+    columns: ['Depicted under component', 'SID element as present in the YAML file'],
+    fields: ['component', 'sidElement'],
     defaultHeading: 'Common Component–SID Links',
   },
 };

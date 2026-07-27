@@ -8,12 +8,12 @@ import EventsStep from './steps/EventsStep.jsx';
 import ReviewStep from './steps/ReviewStep.jsx';
 import DocumentHistoryStep from './steps/DocumentHistoryStep.jsx';
 import DescriptionsStep from './steps/DescriptionsStep.jsx';
-import { CommonSidSidLinksStep, CommonComponentSidOwnerStep } from './steps/CommonPatternsStep.jsx';
+import { CommonComponentSidOwnerStep } from './steps/CommonPatternsStep.jsx';
 import SetupGuide from './SetupGuide.jsx';
 import HelpButton from './HelpButton.jsx';
 import { stateFromComponent } from './parseComponent.js';
 
-const STEPS = ['Metadata', 'Links', 'Descriptions', 'Exposed APIs', 'Dependent APIs', 'Events', 'Review & Save', 'Document History', 'Common SID–SID Links', 'Common Component–SID Owner Links'];
+const STEPS = ['Metadata', 'Links', 'Descriptions', 'Exposed APIs', 'Dependent APIs', 'Events', 'Review & Save', 'Document History', 'Common Component–SID Owner Links'];
 
 // Which file each step edits: most steps build up `state` and only write it
 // to the component's main YAML when Review & Save is used, while Links,
@@ -27,12 +27,12 @@ const STEP_GROUPS = [
   { label: 'Component Spec Document', indices: [1, 2, 7] },
 ];
 
-// Unlike the two groups above, these two steps edit repo-root-level files
-// under docs/Common_Links/ (see CommonPatternsStep.jsx) rather than anything
+// Unlike the two groups above, this step edits a repo-root-level file under
+// docs/Common_Links/ (see CommonPatternsStep.jsx) rather than anything
 // scoped to the component currently open - kept as its own group, rendered
 // on its own row below Component Spec Document, so it reads as a separate
-// concern rather than a third pill squeezed into either existing box.
-const COMMON_PATTERNS_GROUP = { label: 'Common architectural patterns', indices: [8, 9] };
+// concern rather than a pill squeezed into either existing box.
+const COMMON_PATTERNS_GROUP = { label: 'Common architectural patterns', indices: [8] };
 
 function blankState() {
   return {
@@ -236,8 +236,7 @@ export default function App() {
           {step === 7 && (
             <DocumentHistoryStep dirName={originalLocation?.dirName} />
           )}
-          {step === 8 && <CommonSidSidLinksStep />}
-          {step === 9 && <CommonComponentSidOwnerStep />}
+          {step === 8 && <CommonComponentSidOwnerStep />}
 
           <div className="nav-buttons">
             <button onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>Back</button>

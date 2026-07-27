@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 
 // Mirrors the server's compareVersions (server/index.js) so a pre-v26.0 SID
@@ -34,6 +34,163 @@ function orderedPairKey(a, b) {
   return `${left}||${right}`;
 }
 
+// A field can be a plain text input, or (kind: 'select') a dropdown
+// constrained to `options` - used for "Depicted under component" so it can
+// only be set to a component that actually exists in the repo. A row saved
+// before that constraint existed (or before a component was renamed) may
+// hold a value not in the current options - rather than silently dropping
+// it, it's kept as the selected option (flagged red, "not in repo") so it
+// stays visible and editable instead of disappearing.
+function FieldInput({ field, value, onChange }) {
+  if (field.kind === 'select') {
+    const isUnmatched = value && !field.options.includes(value);
+    return (
+      <select value={value} onChange={(e) => onChange(e.target.value)} style={isUnmatched ? { color: 'var(--danger)' } : undefined}>
+        <option value="">Select a component...</option>
+        {isUnmatched && <option value={value} style={{ color: 'var(--danger)' }}>{value} (not in repo)</option>}
+        {field.options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    );
+  }
+  if (field.kind === 'sidPath') {
+    return <SidElementField value={value} onChange={onChange} />;
+  }
+  return <input type="text" value={value} onChange={(e) => onChange(e.target.value)} />;
+}
+
+function toToken(text) {
+  return (text || '').trim().replace(/\s+/g, '_');
+}
+
+// Every domain|ABE|[child|]version path the SID catalog can produce for one
+// version, flattened once so a saved value can be matched back to the
+// {domain, abe, childKey} triple that produced it (to pre-select the
+// cascading picker below) - mirrors the line-building logic in
+// SidPicker.jsx, just run over the whole catalog instead of one choice.
+function buildSidPaths(catalog, version) {
+  const paths = [];
+  for (const domain of catalog.domains || []) {
+    const domainToken = toToken(domain);
+    for (const abe of catalog.abesByDomain[domain] || []) {
+      const abeToken = toToken(abe);
+      paths.push({ line: `${domainToken}|${abeToken}|${version}`, domain, abe, childKey: '' });
+      for (const child of catalog.besByDomainAbe[`${domain}||${abe}`] || []) {
+        const childKey = `${child.kind}:${child.name}`;
+        const childToken = child.kind === 'BE' ? `${child.name}_BE` : toToken(child.name);
+        paths.push({ line: `${domainToken}|${abeToken}|${childToken}|${version}`, domain, abe, childKey });
+      }
+    }
+  }
+  return paths;
+}
+
+// Cascading Domain -> ABE -> optional third segment picker for a single SID
+// path value (as opposed to SidPicker.jsx, which manages a whole array of
+// them for the Metadata tab). A flat dropdown isn't practical here - the SID
+// catalog has on the order of 2,000 domain/ABE/BE combinations - so this
+// narrows the choice down the same way SidPicker does. If the saved value
+// doesn't match any path in the loaded version's catalog (an old version,
+// or hand-typed drift), it's shown flagged rather than silently replaced -
+// the selects stay blank until a real selection overwrites it.
+function SidElementField({ value, onChange }) {
+  const [versions, setVersions] = useState([]);
+  const [version, setVersion] = useState('');
+  const [catalog, setCatalog] = useState({ domains: [], abesByDomain: {}, besByDomainAbe: {} });
+  const [domain, setDomain] = useState('');
+  const [abe, setAbe] = useState('');
+  const [childKey, setChildKey] = useState('');
+
+  useEffect(() => {
+    api.frameworkVersions('sid').then((r) => {
+      setVersions(r.versions || []);
+      setVersion((v) => v || r.versions?.[r.versions.length - 1] || '');
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!version) return;
+    api.frameworkCatalog('sid', version)
+      .then(setCatalog)
+      .catch(() => setCatalog({ domains: [], abesByDomain: {}, besByDomainAbe: {} }));
+  }, [version]);
+
+  const allPaths = useMemo(() => buildSidPaths(catalog, version), [catalog, version]);
+
+  // Re-sync the selects to whatever the current value resolves to whenever
+  // the catalog (re)loads - not on every keystroke elsewhere in the row -
+  // so opening a row that already has a value shows the picker already
+  // pointed at it instead of starting blank.
+  useEffect(() => {
+    const match = allPaths.find((p) => p.line === value);
+    setDomain(match?.domain || '');
+    setAbe(match?.abe || '');
+    setChildKey(match?.childKey || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allPaths]);
+
+  const abeOptions = domain ? (catalog.abesByDomain[domain] || []) : [];
+  const children = (domain && abe) ? (catalog.besByDomainAbe[`${domain}||${abe}`] || []) : [];
+  const isUnmatched = value && !allPaths.some((p) => p.line === value);
+
+  const applySelection = (nextDomain, nextAbe, nextChildKey) => {
+    if (!nextDomain || !nextAbe) return;
+    const domainToken = toToken(nextDomain);
+    const abeToken = toToken(nextAbe);
+    let childToken = '';
+    if (nextChildKey) {
+      const child = (catalog.besByDomainAbe[`${nextDomain}||${nextAbe}`] || []).find((c) => `${c.kind}:${c.name}` === nextChildKey);
+      if (child) childToken = child.kind === 'BE' ? `${child.name}_BE` : toToken(child.name);
+    }
+    onChange(childToken ? `${domainToken}|${abeToken}|${childToken}|${version}` : `${domainToken}|${abeToken}|${version}`);
+  };
+
+  return (
+    <div>
+      <div className="row" style={{ marginBottom: 6 }}>
+        <select
+          value={version}
+          onChange={(e) => { setVersion(e.target.value); setDomain(''); setAbe(''); setChildKey(''); }}
+          style={{ flex: 0.6 }}
+        >
+          {versions.map((v) => <option key={v} value={v}>{v}</option>)}
+        </select>
+        <select
+          value={domain}
+          onChange={(e) => { setDomain(e.target.value); setAbe(''); setChildKey(''); }}
+        >
+          <option value="">Domain...</option>
+          {catalog.domains.map((d) => <option key={d} value={d}>{d}</option>)}
+        </select>
+        <select
+          value={abe}
+          onChange={(e) => { setAbe(e.target.value); setChildKey(''); applySelection(domain, e.target.value, ''); }}
+          disabled={!domain}
+        >
+          <option value="">ABE...</option>
+          {abeOptions.map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <select
+          value={childKey}
+          onChange={(e) => { setChildKey(e.target.value); applySelection(domain, abe, e.target.value); }}
+          disabled={!abe}
+        >
+          <option value="">(no third segment)</option>
+          {children.map((c) => (
+            <option key={`${c.kind}:${c.name}`} value={`${c.kind}:${c.name}`}>
+              {c.name} ({c.kind === 'BE' ? 'Business Entity' : 'sub-ABE'})
+            </option>
+          ))}
+        </select>
+      </div>
+      {isUnmatched && (
+        <p className="hint" style={{ color: 'var(--danger)' }}>
+          Current value <code>{value}</code> doesn&rsquo;t match any path in the {version} catalog.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // One editable link table backing a docs/Common_Links/*.md file. Modeled on
 // LinksStep.jsx's LinksPanel, but these files aren't scoped to a single
 // component (no dirName), so there's no "available once saved" gate. Every
@@ -41,7 +198,7 @@ function orderedPairKey(a, b) {
 // unlike an unresolved duplicate pair, an old SID version is only a warning -
 // pre-v26.0 references are real and expected in older components' history,
 // so they're flagged, not blocked from saving.
-function CommonLinksPanel({ title, helpText, fields, blankRow, pairKeyFn, versionFields, getApi, saveApi }) {
+function CommonLinksPanel({ title, helpText, fields, blankRow, pairKeyFn, versionFields, arrowAfter, getApi, saveApi }) {
   const [data, setData] = useState(null); // { exists, heading, notesBefore, notesAfter, links }
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState(null); // { ok, error? }
@@ -133,10 +290,15 @@ function CommonLinksPanel({ title, helpText, fields, blankRow, pairKeyFn, versio
               ))}
               <div className="row">
                 {fields.map((f) => (
-                  <div className="field" key={f.key}>
-                    <label>{f.label}</label>
-                    <input type="text" value={row[f.key]} onChange={(e) => updateRow(i, f.key, e.target.value)} />
-                  </div>
+                  <React.Fragment key={f.key}>
+                    <div className="field">
+                      <label>{f.label}</label>
+                      <FieldInput field={f} value={row[f.key]} onChange={(v) => updateRow(i, f.key, v)} />
+                    </div>
+                    {arrowAfter?.includes(f.key) && (
+                      <span style={{ alignSelf: 'flex-end', marginBottom: 22, fontSize: '1.1rem', color: 'var(--muted)' }}>&rarr;</span>
+                    )}
+                  </React.Fragment>
                 ))}
               </div>
               <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -175,12 +337,11 @@ export function CommonSidSidLinksStep() {
       helpText="Consolidated SID ABE-to-SID ABE links drawn directly between two SID entities on a component's 2.3 eTOM L2 - SID ABEs links diagram, across all components. Backs docs/Common_Links/Common_SID_SID_Links.md."
       getApi={api.commonSidSidLinks}
       saveApi={api.saveCommonSidSidLinks}
-      blankRow={{ sourceSID: '', targetSID: '', direction: 'bidirectional', yamlSource: '', yamlTarget: '' }}
-      pairKeyFn={(row) => orderedPairKey(row.yamlSource || row.sourceSID, row.yamlTarget || row.targetSID)}
+      blankRow={{ direction: 'bidirectional', yamlSource: '', yamlTarget: '' }}
+      pairKeyFn={(row) => orderedPairKey(row.yamlSource, row.yamlTarget)}
       versionFields={['yamlSource', 'yamlTarget']}
+      arrowAfter={['yamlSource']}
       fields={[
-        { key: 'sourceSID', label: 'Source SID ABE' },
-        { key: 'targetSID', label: 'Target SID ABE' },
         { key: 'direction', label: 'Direction' },
         { key: 'yamlSource', label: 'YAML source' },
         { key: 'yamlTarget', label: 'YAML target' },
@@ -191,22 +352,26 @@ export function CommonSidSidLinksStep() {
 
 // Editor for docs/Common_Links/Common_Component_SID_owner_Links.md - which
 // component box a SID ABE is drawn under when it isn't its own. Rows can
-// legitimately repeat the same Display SID under different components (see
-// the file's own notes), so unlike the SID-SID panel above, no pairKeyFn/
-// duplicate check is applied here.
+// legitimately repeat the same component/SID pair (see the file's own
+// notes), so no pairKeyFn/duplicate check is applied here.
 export function CommonComponentSidOwnerStep() {
+  const [componentOptions, setComponentOptions] = useState([]);
+
+  useEffect(() => {
+    api.components().then((r) => setComponentOptions(r.components.map((c) => `${c.id} - ${c.name}`))).catch(() => {});
+  }, []);
+
   return (
     <CommonLinksPanel
       title={<>Common Component&ndash;SID owner links</>}
       helpText="Consolidated cross-component 'which component box does this SID ABE sit under' links, across all components. Backs docs/Common_Links/Common_Component_SID_owner_Links.md."
       getApi={api.commonComponentSidOwnerLinks}
       saveApi={api.saveCommonComponentSidOwnerLinks}
-      blankRow={{ displaySID: '', component: '', sidElement: '' }}
+      blankRow={{ component: '', sidElement: '' }}
       versionFields={['sidElement']}
       fields={[
-        { key: 'displaySID', label: 'Display SID' },
-        { key: 'component', label: 'Depicted under component' },
-        { key: 'sidElement', label: 'SID element as present in the YAML file' },
+        { key: 'component', label: 'Depicted under component', kind: 'select', options: componentOptions },
+        { key: 'sidElement', label: 'SID element as present in the YAML file', kind: 'sidPath' },
       ]}
     />
   );
