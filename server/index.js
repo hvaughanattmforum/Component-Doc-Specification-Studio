@@ -51,6 +51,12 @@ const SPECIFICATIONS_DIR = path.join(REPO_ROOT, 'specifications');
 const SCHEMA_PATH = path.join(REPO_ROOT, 'ci', 'component.schema.json');
 const API_INDEX_PATH = path.join(REPO_ROOT, 'apiIndex.json');
 
+// Cross-component "common architectural patterns" link tables - unlike the
+// per-component Diagrams/*.md files below, these two live once at the repo
+// root (docs/Common_Links/) and consolidate links that span multiple
+// components' own diagrams (see registerCommonLinksRoutes further down).
+const COMMON_LINKS_DIR = path.join(REPO_ROOT, 'docs', 'Common_Links');
+
 // Reference taxonomy catalogs (eTOM/SID/Functional Framework), pre-converted
 // from the official TMForum GB921/GB922/GB1033 Excel exports by
 // scripts/parse_reference_data.py. This directory is configured fully
@@ -612,6 +618,66 @@ function registerLinksRoutes(type) {
 }
 
 Object.values(LINK_TYPES).forEach(registerLinksRoutes);
+
+// Consolidated, repo-root-level link tables under docs/Common_Links/ - same
+// "GFM table + free-text notes" shape as the per-component link files above,
+// so parsing/rendering is reused, but there's exactly one file per type
+// (not one per component). A cell referencing a pre-v26.0 SID version is
+// flagged as a warning client-side (see CommonPatternsStep.jsx) rather than
+// enforced here - older versions are still legitimate, so the server accepts
+// whatever the client sends.
+const COMMON_LINK_TYPES = {
+  commonSidSid: {
+    route: 'common-sid-sid-links',
+    fileName: 'Common_SID_SID_Links.md',
+    columns: ['Direction', 'YAML source', 'YAML target'],
+    fields: ['direction', 'yamlSource', 'yamlTarget'],
+    defaultHeading: 'Common SID–SID Links',
+  },
+  commonComponentSidOwner: {
+    route: 'common-component-sid-owner-links',
+    fileName: 'Common_Component_SID_owner_Links.md',
+    columns: ['Depicted under component', 'SID element as present in the YAML file'],
+    fields: ['component', 'sidElement'],
+    defaultHeading: 'Common Component–SID Links',
+  },
+};
+
+function registerCommonLinksRoutes(type) {
+  const filePath = path.join(COMMON_LINKS_DIR, type.fileName);
+
+  app.get(`/api/${type.route}`, (req, res) => {
+    if (!fs.existsSync(filePath)) {
+      return res.json({ ok: true, exists: false, heading: type.defaultHeading, notesBefore: '', notesAfter: '', links: [] });
+    }
+    try {
+      const parsed = parseLinksMarkdown(fs.readFileSync(filePath, 'utf8'), type.fields, type.defaultHeading);
+      res.json({ ok: true, exists: true, ...parsed });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  app.post(`/api/${type.route}`, (req, res) => {
+    const { heading, notesBefore, notesAfter, links } = req.body;
+    if (!Array.isArray(links)) {
+      return res.status(400).json({ ok: false, error: 'links must be an array' });
+    }
+    try {
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(
+        filePath,
+        renderLinksMarkdown({ heading: heading || type.defaultHeading, notesBefore, notesAfter, links }, type.columns, type.fields),
+        'utf8',
+      );
+      res.json({ ok: true, path: filePath });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+}
+
+Object.values(COMMON_LINK_TYPES).forEach(registerCommonLinksRoutes);
 
 // Description lookup files (Diagrams/<ID>_eTOM_Descriptions.md,
 // Diagrams/<ID>_FF_Descriptions.md) hold prose the YAML has no room for:

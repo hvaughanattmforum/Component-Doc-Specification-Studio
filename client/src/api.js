@@ -52,6 +52,20 @@ export const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }).then((res) => res.json().then((body) => ({ status: res.status, ...body }))),
+  // Repo-root-level (not per-component) common architectural pattern links -
+  // see docs/Common_Links/ in the target repo.
+  commonSidSidLinks: () => fetch(`${BASE}/common-sid-sid-links`).then(json),
+  saveCommonSidSidLinks: (payload) => fetch(`${BASE}/common-sid-sid-links`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then((res) => res.json().then((body) => ({ status: res.status, ...body }))),
+  commonComponentSidOwnerLinks: () => fetch(`${BASE}/common-component-sid-owner-links`).then(json),
+  saveCommonComponentSidOwnerLinks: (payload) => fetch(`${BASE}/common-component-sid-owner-links`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then((res) => res.json().then((body) => ({ status: res.status, ...body }))),
   componentSupplement: (dirName) => fetch(`${BASE}/component/${encodeURIComponent(dirName)}/supplement`).then(json),
   // payload: { jiraBody, furtherBody, versionHistoryRows, releaseHistoryRows, acknowledgementsRows }
   saveComponentSupplement: (dirName, payload) => fetch(`${BASE}/component/${encodeURIComponent(dirName)}/supplement`, {

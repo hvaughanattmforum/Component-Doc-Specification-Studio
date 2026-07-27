@@ -8,11 +8,12 @@ import EventsStep from './steps/EventsStep.jsx';
 import ReviewStep from './steps/ReviewStep.jsx';
 import DocumentHistoryStep from './steps/DocumentHistoryStep.jsx';
 import DescriptionsStep from './steps/DescriptionsStep.jsx';
+import { CommonComponentSidOwnerStep } from './steps/CommonPatternsStep.jsx';
 import SetupGuide from './SetupGuide.jsx';
 import HelpButton from './HelpButton.jsx';
 import { stateFromComponent } from './parseComponent.js';
 
-const STEPS = ['Metadata', 'Links', 'Descriptions', 'Exposed APIs', 'Dependent APIs', 'Events', 'Review & Save', 'Document History'];
+const STEPS = ['Metadata', 'Links', 'Descriptions', 'Exposed APIs', 'Dependent APIs', 'Events', 'Review & Save', 'Document History', 'Common Component–SID Owner Links'];
 
 // Which file each step edits: most steps build up `state` and only write it
 // to the component's main YAML when Review & Save is used, while Links,
@@ -25,6 +26,13 @@ const STEP_GROUPS = [
   { label: 'Component YAML', indices: [0, 3, 4, 5, 6] },
   { label: 'Component Spec Document', indices: [1, 2, 7] },
 ];
+
+// Unlike the two groups above, this step edits a repo-root-level file under
+// docs/Common_Links/ (see CommonPatternsStep.jsx) rather than anything
+// scoped to the component currently open - kept as its own group, rendered
+// on its own row below Component Spec Document, so it reads as a separate
+// concern rather than a pill squeezed into either existing box.
+const COMMON_PATTERNS_GROUP = { label: 'Common architectural patterns', indices: [8] };
 
 function blankState() {
   return {
@@ -154,6 +162,20 @@ export default function App() {
               </div>
             ))}
           </div>
+          <div className="step-groups">
+            <div className="step-group" key={COMMON_PATTERNS_GROUP.label}>
+              <span className="step-group-label">{COMMON_PATTERNS_GROUP.label}</span>
+              {COMMON_PATTERNS_GROUP.indices.map((i, posIdx) => (
+                <button
+                  key={STEPS[i]}
+                  className={`step-pill ${i === step ? 'active' : ''}`}
+                  onClick={() => setStep(i)}
+                >
+                  {STEP_GROUPS.length + 1}.{posIdx + 1}. {STEPS[i]}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {mode === 'edit' && (
             <div className="status-banner ok" style={{ marginBottom: 16 }}>
@@ -214,6 +236,7 @@ export default function App() {
           {step === 7 && (
             <DocumentHistoryStep dirName={originalLocation?.dirName} />
           )}
+          {step === 8 && <CommonComponentSidOwnerStep />}
 
           <div className="nav-buttons">
             <button onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>Back</button>
